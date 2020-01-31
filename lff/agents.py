@@ -321,7 +321,7 @@ class RandomAgent(Agent):
     Returns:
       A tuple of the action taken probability, and action taken.
     """
-    return 1.0/self.num_actions, random.randint(self.num_actions)
+    return 1.0/self.num_actions, random.randint(0, self.num_actions-1)
 
   def finish_episode(self, states, actions, a_probs, rewards, next_states, dones, i):
     """

@@ -31,7 +31,6 @@ class GymRunner:
       num_episodes: int = number of episodes to generate
       do_train: bool = True if running inference in training mode
       record_file: str = location to write episode data; do not write if empty
-      render: bool = render the generated episodes
 
     Returns:
       List of episode dictionaries.

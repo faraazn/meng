@@ -22,9 +22,9 @@ parser.add_argument('--monitor_dir', type=str, default="", metavar='F',
 parser.add_argument('--save_model', type=str, default="", metavar='F',
                     help='save weights to this location')
 parser.add_argument('--num_episodes', type=int, default=200, metavar='N',
-                    help='number of episodes to run per policy (default: 10)')
-parser.add_argument('--num_agents', type=int, default=1, metavar='N',
-                    help='number of agents to train (default: 1)')
+                    help='number of episodes to run per agent (default: 200)')
+parser.add_argument('--num_agents', type=int, default=10, metavar='N',
+                    help='number of generations of agents to train (default: 10)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='H',
                     help='size of hidden layer (default: 128)')
 parser.add_argument('--use_ips', action='store_true',
