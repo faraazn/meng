@@ -9,6 +9,9 @@ import math
 import random
 import cv2
 import subprocess
+from moviepy.editor import VideoFileClip
+import pygame as pg
+
 
 class GymRunner:
     def __init__(self):
@@ -70,7 +73,7 @@ class GymRunner:
 
         samples = self.env.em.get_audio()
         self.aud_samples = samples[:,0]
-        self.aud_stream.start_stream()
+#        self.aud_stream.start_stream()
 
         for i in range(num_steps):
             # obs is the video frame
@@ -85,6 +88,7 @@ class GymRunner:
             self.aud_samples = np.concatenate([self.aud_samples, samples[:,0]], axis=0)
 
             cv2.imshow('frame', obs)
+            cv2.waitKey(1)
 
             if done:
                 break
@@ -106,6 +110,9 @@ class GymRunner:
             ['ffmpeg', '-y', '-i', self.vid_filename, '-i', self.aud_filename, '-c:v', 
              'copy', '-c:a', 'aac', '-strict', 'experimental', 'output.mp4'])
         process.communicate()
+
+        clip = VideoFileClip('output.mp4')
+        clip.preview()
 
 
 def main(): 
