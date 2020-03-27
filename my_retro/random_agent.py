@@ -8,11 +8,10 @@ import struct
 import math
 import random
 import cv2
-from threading import Thread
+import subprocess
 
 class GymRunner:
     def __init__(self):
-        print("initializing -------\n\n\n\n\n")
         # set up environment
         self.env = retro.make(
             game='SonicTheHedgehog-Genesis', state='LabyrinthZone.Act1')
@@ -34,16 +33,11 @@ class GymRunner:
         # set up video recording
         self.vid_width = 320
         self.vid_height = 224
+        self.vid_fps = 60
         self.vid_filename = "recording.mp4"
-        self.vid_record = (
-            ffmpeg
-            .input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(
-                self.vid_width, self.vid_height))
-            #.filter('fps', fps="60")
-            .output(self.vid_filename, pix_fmt='yuv420p')
-            .overwrite_output()
-            .run_async(pipe_stdin=True)
-        )
+        self.vid_record = cv2.VideoWriter(self.vid_filename,
+                                          cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 
+                                          self.vid_fps, (self.vid_width, self.vid_height))
         self.vid_frames = None
 
         # set up audio recording
@@ -72,31 +66,26 @@ class GymRunner:
         # initialize environment and video / audio recording
         obs = self.env.reset()
         self.vid_frames = [obs]
-        self.vid_record.stdin.write(
-            obs
-            .astype(np.uint8)
-            .tobytes()
-        )
+        self.vid_record.write(obs)
+
         samples = self.env.em.get_audio()
         self.aud_samples = samples[:,0]
         self.aud_stream.start_stream()
 
         for i in range(num_steps):
-            print(f"vid frame / audio sample [735]: {self.aud_sample_i/(i+1)}")
+            # obs is the video frame
             obs, rew, done, info = self.env.step(self.env.action_space.sample())
             
             # record the video frame
             self.vid_frames.append(obs)
-            self.vid_record.stdin.write(
-                obs
-                .astype(np.uint8)
-                .tobytes()
-            )
+            self.vid_record.write(obs)
+
             # record the audio samples in mono
             samples = self.env.em.get_audio()
             self.aud_samples = np.concatenate([self.aud_samples, samples[:,0]], axis=0)
 
-            self.env.render()
+            cv2.imshow('frame', obs)
+
             if done:
                 break
         
@@ -108,8 +97,15 @@ class GymRunner:
         print(f"aud samples {self.aud_samples.shape}")
         self.wav_record.writeframesraw(self.aud_samples)
         self.wav_record.close()
-        
-        self.vid_record.stdin.close()
+       
+        self.vid_record.release()
+        cv2.destroyAllWindows()
+
+        # combine the audio and video into a new file
+        process = subprocess.Popen(
+            ['ffmpeg', '-y', '-i', self.vid_filename, '-i', self.aud_filename, '-c:v', 
+             'copy', '-c:a', 'aac', '-strict', 'experimental', 'output.mp4'])
+        process.communicate()
 
 
 def main(): 
