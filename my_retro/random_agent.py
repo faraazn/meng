@@ -15,21 +15,13 @@ import threading
 from tqdm import tqdm
 import queue
 import sounddevice as sd
-
+from image_viewer import SimpleImageViewer
 
 class GymRunner:
     def __init__(self):
         # set up environment
         self.env = retro.make(
             game='SonicTheHedgehog-Genesis', state='LabyrinthZone.Act1')
-
-        # set up audio streaming
-        self.sr = int(self.env.em.get_audio_rate())
-        assert self.sr == 44100
-        self.pya = pyaudio.PyAudio()
-        self.aud_stream = self.pya.open(format=pyaudio.paInt16, 
-                                        channels=2, rate=self.sr, output=True,
-                                        frames_per_buffer=1024)
 
         # set up video recording
         self.vid_width = 320
@@ -42,6 +34,8 @@ class GymRunner:
         self.vid_frames = None
 
         # set up audio recording
+        self.sr = int(self.env.em.get_audio_rate())
+        assert self.sr == 44100
         self.aud_filename = "sound.wav"
         self.aud_record = wave.open(self.aud_filename,'w')
         self.aud_record.setnchannels(2) # stereo
@@ -49,93 +43,80 @@ class GymRunner:
         self.aud_record.setframerate(self.sr)
         self.aud_frames = None
 
+        # set up video streaming
+        self.viewer = SimpleImageViewer()
+
+        # set up audio streaming
+        self.pya = pyaudio.PyAudio()
+        self.frames_per_buffer = 4096
+        self.aud_stream = self.pya.open(format=pyaudio.paInt16, 
+                                        channels=1, rate=self.sr, output=True,
+                                        frames_per_buffer=self.frames_per_buffer)
+
         # other streaming vars
-        self.streaming = False
-        self.frame_buffer = self.fps * 3  # min 3 seconds
-        self.record_q = queue.Queue()
-        self.play_q = queue.Queue()
+        self.last_stream = None
+        self.last_vid_frame = None
+        self.last_aud_frame = None
+        # 16x slowdown -> 11760 samples/frame, 0.26 sec/frame
+        # BERT inference time on optimized CPU: 0.05 sec
+        self.max_slowdown = 16
 
-        # set up pygame
-        pg.mixer.pre_init(self.sr, -16, 2, 735)
-        pg.init()
-        self.screen = pg.display.set_mode((self.vid_width, self.vid_height))
-        self.clock = pg.time.Clock()
+    def clean_up(self):
+        # close the audio and video files
+        self.vid_record.release()
+        self.aud_record.close()
         
+        # stop audio streaming
+        self.aud_stream.stop_stream()
+        self.aud_stream.close()
+        self.pya.terminate()
+        
+        # combine the audio and video into a new file
+        process = subprocess.Popen(
+            ['ffmpeg', '-y', '-i', self.vid_filename, '-i', self.aud_filename, '-c:v', 
+            'copy', '-c:a', 'aac', '-strict', 'experimental', 'output.mp4'])
+        process.communicate()
 
 
-    def play_thread(self):
-        def play_video(vid_frame):
-            a = pg.surfarray.make_surface(vid_frame.swapaxes(0, 1))
-            self.screen.blit(a, (0, 0))
-            pg.display.flip()
-           
-        def play_audio(aud_frame):
-            available = self.aud_stream.get_write_available()
-            self.aud_stream.write(aud_frame.tostring())
-            print(f"available {available}")
-
-        while True:
-            if not self.play_q.empty():
-                # there is data to be streamed
-                vid_frame, aud_frame = self.play_q.get()
+    def render(self, vid_frame, aud_frame, smooth_audio=True, save=True):
+        available = self.aud_stream.get_write_available()
+        print(f"available {available}")
+        if smooth_audio:
+            # play with 1 frame delay so we can resample audio
+            if self.last_stream is None:
+                # create the 1 frame delay
+                self.last_vid_frame = vid_frame
+                self.last_aud_frame = aud_frame
+                self.last_stream = time.time()
             
-                s = time.time()
-                play_video(vid_frame)
-                print(f"vid {time.time()-s}")
-                
-                s = time.time()
-                play_audio(aud_frame)
-                print(f"aud {time.time()-s}")
-
-            elif self.streaming:
-                # available data has been streamed, need to regenerate buffer
-                with tqdm(total=self.frame_buffer) as pbar:
-                    while self.play_q.qsize() < self.frame_buffer and self.streaming:
-                        pbar.update(self.play_q.qsize() - pbar.n)
-                        time.sleep(0.05)
-                    pbar.update(self.frame_buffer - pbar.n)
-
             else:
-                # all data has been streamed and there is no more coming
-                self.aud_stream.stop_stream()
-                self.aud_stream.close()
-                self.pya.terminate()
-                break
-       
-
-    def record_thread(self):
-        while True:
-            if not self.record_q.empty():
-                # there is data to be recorded
-                vid_frame, aud_frame = self.record_q.get()
-                # save video frames to file
-                self.vid_record.write(vid_frame)
-                # save audio frames to file
-                self.aud_record.writeframesraw(aud_frame)
-
-            elif self.streaming:
-                # available data has been streamed, wait a little bit
-                time.sleep(0.05)
-            else:
-                # all data has been streamed and there is no more coming
+                # play the last vid frame
+                self.viewer.imshow(self.last_vid_frame)
+                self.last_vid_frame = vid_frame
                 
-                # close the audio and video files
-                self.vid_record.release()
-                self.aud_record.close()
+                # resample the last aud frame and play
+                time_diff = time.time() - self.last_stream
+                resample_factor = max(1 / self.max_slowdown, 1 / self.fps / time_diff)
+                desired_x = np.arange(0, self.last_aud_frame.shape[0], resample_factor)
+                current_x = np.arange(0, self.last_aud_frame.shape[0])
+                current_y = self.last_aud_frame[:,0]
+                res_aud_frame = np.interp(desired_x, current_x, current_y).astype(np.int16)
+                self.aud_stream.write(res_aud_frame.tostring())
+                self.last_aud_frame = aud_frame
                 
-                # combine the audio and video into a new file
-                process = subprocess.Popen(
-                    ['ffmpeg', '-y', '-i', self.vid_filename, '-i', self.aud_filename, '-c:v', 
-                    'copy', '-c:a', 'aac', '-strict', 'experimental', 'output.mp4'])
-                process.communicate()
-                break
-
-    def run(self, num_steps):
-        # initialize processing thread
-        self.streaming = True
-        p_thread = threading.Thread(target=self.play_thread)
-        r_thread = threading.Thread(target=self.record_thread)
+                self.last_stream = time.time()
+        else:
+            # play with no resampling and risk choppy audio
+            self.viewer.imshow(vid_frame)
+            self.aud_stream.write(aud_frame[:,0].tostring())
         
+        if save:
+            # write data to file
+            self.vid_record.write(vid_frame)
+            self.aud_record.writeframesraw(aud_frame)
+
+    
+    def run(self, num_steps):
         # initialize environment
         obs = self.env.reset()
         self.vid_frames = [obs]
@@ -144,31 +125,23 @@ class GymRunner:
 
         start = time.time()
         for i in range(num_steps):
-            if i == 50:
-                p_thread.start()
-                r_thread.start()
-
             # obs is the video frame
+            s = time.time()
+            #time.sleep(np.random.random()/10+0.05)
+            time.sleep(0.01)
+            
             obs, rew, done, info = self.env.step(self.env.action_space.sample())
             
-            # add audio and video data to queues
             vid_frame = obs
             aud_frame = self.env.em.get_audio()
-            self.record_q.put((vid_frame, aud_frame))
-            self.play_q.put((vid_frame, aud_frame))
-           
-            time.sleep(0.005)
+            self.render(vid_frame, aud_frame, smooth_audio=True)
+            
+            print(f"{1 / self.fps / (time.time()-s)}")
             if done:
                 break
 
-        # take a moment to sync with stream thread
-        self.streaming = False
-        print(f"done streaming {time.time()-start}s")
-        r_thread.join()
-        print(f"done recording {time.time()-start}s")
-        p_thread.join()
-        print(f"done playing {time.time()-start}s")
-
+        print(f"total time {time.time()-start}s")
+        self.clean_up()
         clip = VideoFileClip('output.mp4')
         clip.preview()
 
