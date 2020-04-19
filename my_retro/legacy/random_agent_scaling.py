@@ -16,9 +16,6 @@ from tqdm import tqdm
 import queue
 import sounddevice as sd
 from image_viewer import SimpleImageViewer
-import collections
-import matplotlib.pyplot as plt
-
 
 class GymRunner:
     def __init__(self):
@@ -34,6 +31,7 @@ class GymRunner:
         self.vid_record = cv2.VideoWriter(self.vid_filename,
                                           cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 
                                           self.fps, (self.vid_width, self.vid_height))
+        self.vid_frames = None
 
         # set up audio recording
         self.sr = int(self.env.em.get_audio_rate())
@@ -43,6 +41,7 @@ class GymRunner:
         self.aud_record.setnchannels(2) # stereo
         self.aud_record.setsampwidth(2)
         self.aud_record.setframerate(self.sr)
+        self.aud_frames = None
 
         # set up video streaming
         self.viewer = SimpleImageViewer()
@@ -55,20 +54,17 @@ class GymRunner:
                                         frames_per_buffer=self.frames_per_buffer)
 
         # other streaming vars
+        self.last_stream = None
+        self.last_vid_frame = None
+        self.last_aud_frame = None
         # 16x slowdown -> 11760 samples/frame, 0.26 sec/frame
         # BERT inference time on optimized CPU: 0.05 sec
         self.max_slowdown = 16
+        self.scale = 0.95
+        self.last_diff = None
         self.time_diffs_f = open("data/time_diffs_no_overwrite.txt", "w+")
         self.write_times_f = open("data/write_times_test.txt", "w+")
         self.viz_times_f = open("data/viz_times_test.txt", "w+")
-
-        # set up frame buffer
-        self.frame_buf = collections.deque()
-        self.frame_buf_size = 10
-        self.times = []
-        self.avg_times = []
-        self.avails = []
-
 
     def clean_up(self):
         # close the audio and video files
@@ -91,44 +87,45 @@ class GymRunner:
             'copy', '-c:a', 'aac', '-strict', 'experimental', 'output.mp4'])
         process.communicate()
 
-
-    def render(self, vid_frame, aud_frame, smooth_audio=True, save=True):
+    def render(self, vid_frame, aud_frame, smooth_audio=True, use_scaling=False, save=True):
         available = self.aud_stream.get_write_available()
         print(f"available {available}")
         if smooth_audio:
+            # play with 1 frame delay so we can resample audio
+            if self.last_stream is None:
+                # create the 1 frame delay
+                self.last_vid_frame = vid_frame
+                self.last_aud_frame = aud_frame
+                self.last_stream = time.time()
             
-            if len(self.frame_buf) >= self.frame_buf_size:
-                # take from the buffer
-                v_f, a_f, t = self.frame_buf.popleft()
-
-                # play video
-                self.viewer.imshow(v_f)
-
-                # resample the audio and play
-                res_time = time.time()
-                avg_time_diff = (res_time - t) / (self.frame_buf_size - 1)
-                res_factor = max(1 / self.max_slowdown, 1 / self.fps / avg_time_diff)
-                #print(f"  resample_factor {resample_factor}, avg_time_diff {avg_time_diff}s")
-                desired_x = np.arange(0, a_f.shape[0], res_factor)[:available]
-                current_x = np.arange(0, a_f.shape[0])
-                current_y = a_f[:,0]
-                res_a_f = np.interp(desired_x, current_x, current_y).astype(np.int16)
-                self.aud_stream.write(res_a_f.tostring())
-            
-                # add to the buffer using resample time
-                self.frame_buf.append((vid_frame, aud_frame, res_time))
-                self.times.append(res_time - self.frame_buf[-2][2])
-                self.avg_times.append(avg_time_diff)
-                self.avails.append(available)
             else:
-                # add to the buffer
-                time.sleep(0.001)
-                self.frame_buf.append((vid_frame, aud_frame, time.time()))
-                
+                # play the last vid frame
+                self.viewer.imshow(self.last_vid_frame)
+                self.last_vid_frame = vid_frame
+                # resample the last aud frame and play
+                time_diff = time.time() - self.last_stream
+                if use_scaling:
+                    if self.last_diff is not None and time_diff < self.last_diff:
+                        time_diff = max(time_diff, self.last_diff * self.scale)
+                        self.scale *= 0.99
+                    else:
+                        self.scale = 0.95
+                    self.last_diff = time_diff
+                resample_factor = max(1 / self.max_slowdown, 1 / self.fps / time_diff)
+                desired_x = np.arange(0, self.last_aud_frame.shape[0], resample_factor)[:available]
+                current_x = np.arange(0, self.last_aud_frame.shape[0])
+                current_y = self.last_aud_frame[:,0]
+                res_aud_frame = np.interp(desired_x, current_x, current_y).astype(np.int16)
+                self.aud_stream.write(res_aud_frame.tostring())
+                #write_time = time.time()-s
+                #self.write_times_f.write(f"{desired_x.shape[0]},{available},{write_time}\n")
+                self.last_aud_frame = aud_frame
+                self.time_diffs_f.write(f"{time_diff}\n")
+                self.last_stream = time.time()
         else:
-            # play with no resampling and risk choppy audio, cutting off samples
+            # play with no resampling and risk choppy audio
             self.viewer.imshow(vid_frame)
-            self.aud_stream.write(aud_frame[:available,0].tostring())
+            self.aud_stream.write(aud_frame[:,0].tostring())
         
         if save:
             # write data to file
@@ -139,14 +136,16 @@ class GymRunner:
     def run(self, num_steps):
         # initialize environment
         obs = self.env.reset()
-        aud_frame = self.env.em.get_audio()
+        self.vid_frames = [obs]
+        samples = self.env.em.get_audio()
+        self.aud_frames = [samples]
 
         start = time.time()
         for i in range(num_steps):
             s = time.time()
             # obs is the video frame
             #time.sleep(np.random.random()/5*i/1000+0.00)
-            time.sleep(0.005)
+            time.sleep(0.01)
             
             obs, rew, done, info = self.env.step(self.env.action_space.sample())
             
@@ -155,20 +154,12 @@ class GymRunner:
             self.render(vid_frame, aud_frame, smooth_audio=True)
             #print(f"{1 / self.fps / (time.time()-s)}")
             if done:
-                #self.finish_render()
                 break
 
         print(f"total time {time.time()-start}s")
         self.clean_up()
-        
-        plt.plot(self.times)
-        plt.plot(self.avg_times)
-        plt.show()
-        plt.plot(self.avails)
-        plt.show()
-
-        #clip = VideoFileClip('output.mp4')
-        #clip.preview()
+        clip = VideoFileClip('output.mp4')
+        clip.preview()
 
 
 def main(): 
