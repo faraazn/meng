@@ -41,6 +41,7 @@ def main():
     envs = make_vec_envs(args.env_name, args.seed, args.num_processes,
                          args.gamma, args.log_dir, device, False)
 
+    print(f"envs.observation_space.shape {envs.observation_space.shape}")
     actor_critic = Policy(
         envs.observation_space.shape,
         envs.action_space,
@@ -103,7 +104,7 @@ def main():
     num_updates = int(
         args.num_env_steps) // args.num_steps // args.num_processes
     for j in range(num_updates):
-
+        print(f"update {j}")
         if args.use_linear_lr_decay:
             # decrease learning rate linearly
             utils.update_linear_schedule(
@@ -117,12 +118,14 @@ def main():
                     rollouts.obs[step], rollouts.recurrent_hidden_states[step],
                     rollouts.masks[step])
 
-            # Obser reward and next obs
+            # Observe reward and next obs
+            #print(f"action {action}")
             obs, reward, done, infos = envs.step(action)
 
             for info in infos:
                 if 'episode' in info.keys():
                     episode_rewards.append(info['episode']['r'])
+            episode_rewards.append(reward)
 
             # If done then clean the history of observations.
             masks = torch.FloatTensor(
@@ -164,6 +167,7 @@ def main():
         # save for every interval-th episode or for the last epoch
         if (j % args.save_interval == 0
                 or j == num_updates - 1) and args.save_dir != "":
+            print("saving")
             save_path = os.path.join(args.save_dir, args.algo)
             try:
                 os.makedirs(save_path)
@@ -176,6 +180,7 @@ def main():
             ], os.path.join(save_path, args.env_name + ".pt"))
 
         if j % args.log_interval == 0 and len(episode_rewards) > 1:
+            print("logging")
             total_num_steps = (j + 1) * args.num_processes * args.num_steps
             end = time.time()
             print(

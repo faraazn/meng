@@ -9,6 +9,8 @@ import torch
 from a2c_ppo_acktr.envs import VecPyTorch, make_vec_envs
 from a2c_ppo_acktr.utils import get_render_func, get_vec_normalize
 
+from renderer import Renderer
+
 sys.path.append('a2c_ppo_acktr')
 
 parser = argparse.ArgumentParser(description='RL')
@@ -21,7 +23,7 @@ parser.add_argument(
     help='log interval, one log per n updates (default: 10)')
 parser.add_argument(
     '--env-name',
-    default='SeaquestNoFrameskip-v4',
+    default='sonicv0',#'SeaquestNoFrameskip-v4',
     help='environment to train on (default: PongNoFrameskip-v4)')
 parser.add_argument(
     '--load-dir',
@@ -44,9 +46,13 @@ env = make_vec_envs(
     None,
     device='cpu',
     allow_early_resets=False)
+    
+#envs = make_vec_envs(args.env_name, args.seed, args.num_processes,
+#                         args.gamma, args.log_dir, device, False)
 
 # Get a render function
-render_func = get_render_func(env)
+render_func = None #get_render_func(env)
+renderer = Renderer()
 
 # We need to use the same statistics for normalization as used in training
 actor_critic, ob_rms = \
@@ -76,15 +82,16 @@ if args.env_name.find('Bullet') > -1:
 
 while True:
     with torch.no_grad():
+        #print(f"obs {obs.shape}")
+        #print(f"ac {actor_critic.obs_shape}")
         value, action, _, recurrent_hidden_states = actor_critic.act(
             obs, recurrent_hidden_states, masks, deterministic=args.det)
 
     # Obser reward and next obs
     obs, reward, done, _ = env.step(action)
-    print(f"obs {obs.shape}")
-    aud_frame = env.em.get_audio()
-    print(f"aud {aud_frame.shape}")
-
+    #print(f"obs {obs.shape}")
+    aud_frame = env.envs[0].em.get_audio()
+    #print(f"aud {aud_frame.shape}")
     masks.fill_(0.0 if done else 1.0)
 
     if args.env_name.find('Bullet') > -1:
@@ -96,3 +103,7 @@ while True:
 
     if render_func is not None:
         render_func('human')
+
+    vid_frame = obs[0].detach().numpy().astype(np.uint8)
+    vid_frame = vid_frame.transpose((1, 2, 0))
+    renderer.render(vid_frame, aud_frame)

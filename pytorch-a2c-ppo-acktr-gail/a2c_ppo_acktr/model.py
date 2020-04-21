@@ -15,6 +15,8 @@ class Flatten(nn.Module):
 class Policy(nn.Module):
     def __init__(self, obs_shape, action_space, base=None, base_kwargs=None):
         super(Policy, self).__init__()
+        print(f"policy obs_shape {obs_shape}")
+        self.obs_shape = obs_shape
         if base_kwargs is None:
             base_kwargs = {}
         if base is None:
@@ -27,6 +29,7 @@ class Policy(nn.Module):
             else:
                 raise NotImplementedError
 
+        print(f"init base with obs_shape {obs_shape}")
         self.base = base(obs_shape[0], **base_kwargs)
         print(f"base {base}")
 
@@ -179,11 +182,14 @@ class CNNBase(NNBase):
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
                                constant_(x, 0), nn.init.calculate_gain('relu'))
 
+        # sonic shape 4, 224, 320
+        print(f"num_inputs {num_inputs}, should be 3")
         self.main = nn.Sequential(
             init_(nn.Conv2d(num_inputs, 32, 8, stride=4)), nn.ReLU(),
-            init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),
-            init_(nn.Conv2d(64, 32, 3, stride=1)), nn.ReLU(), Flatten(),
-            init_(nn.Linear(32 * 7 * 7, hidden_size)), nn.ReLU())
+            init_(nn.Conv2d(32, 64, 4, stride=4)), nn.ReLU(), # originally stride 2
+            init_(nn.Conv2d(64, 32, 3, stride=2)), nn.ReLU(), Flatten(), # originally stride 1
+            #init_(nn.Linear(32 * 7 * 7, hidden_size)), nn.ReLU())
+            init_(nn.Linear(1728, hidden_size)), nn.ReLU())
 
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
                                constant_(x, 0))
@@ -196,6 +202,7 @@ class CNNBase(NNBase):
         x = self.main(inputs / 255.0)
 
         if self.is_recurrent:
+            assert False
             x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
 
         return self.critic_linear(x), x, rnn_hxs
