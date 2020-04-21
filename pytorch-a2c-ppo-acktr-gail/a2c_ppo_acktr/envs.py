@@ -44,11 +44,8 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
             #print(env.em)
             env = retro.make(
                 game='SonicTheHedgehog-Genesis', state='LabyrinthZone.Act1')
-            print(f"envobs1 {env.observation_space.shape}")
             env = SonicDiscretizer(env)
-            print(f"envobs2 {env.observation_space.shape}")
             env = RewardScaler(env)
-            print(f"envobs3 {env.observation_space.shape}")
             #env = WarpFrame(env)
             #env = FrameStack(env, 4)
 
@@ -62,20 +59,18 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
 
         if str(env.__class__.__name__).find('TimeLimit') >= 0:
             env = TimeLimitMask(env)
-            print(f"envobs4 {env.observation_space.shape}")
 
         if log_dir is not None:
             env = Monitor(
                 env,
                 os.path.join(log_dir, str(rank)),
                 allow_early_resets=allow_early_resets)
-            print(f"envobs5 {env.observation_space.shape}")
 
         if is_atari:
             if len(env.observation_space.shape) == 3:
                 env = wrap_deepmind(env)
         elif len(env.observation_space.shape) == 3:
-            print(f"obs_shape wouldve thrown error {env.observation_space.shape}")
+            pass
             """
             raise NotImplementedError(
                 "CNN models work only for atari,\n"
@@ -85,10 +80,7 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
         # If the input has shape (W,H,3), wrap for PyTorch convolutions
         obs_shape = env.observation_space.shape
         if len(obs_shape) == 3 and obs_shape[2] in [1, 3]:
-            print(f"obs_shape {obs_shape}, transposing")
-            #assert False
             env = TransposeImage(env, op=[2, 0, 1])
-            print(f"envobs6 {env.observation_space.shape}")
 
         return env
 
@@ -105,7 +97,7 @@ def make_vec_envs(env_name,
                   num_frame_stack=None):
     envs = [
         make_env(env_name, seed, i, log_dir, allow_early_resets)
-        for i in range(1)#range(num_processes)
+        for i in range(num_processes)
     ]
 
     if len(envs) > 1:

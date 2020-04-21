@@ -14,7 +14,6 @@ import pygame as pg
 import threading
 from tqdm import tqdm
 import queue
-import sounddevice as sd
 from image_viewer import SimpleImageViewer
 import collections
 import matplotlib.pyplot as plt
@@ -45,7 +44,10 @@ class GymRunner:
             
             vid_frame = obs
             aud_frame = self.env.em.get_audio()
+            if rew != 0:
+                print(f"rew {rew}, x {info['x']}")
             self.renderer.render(vid_frame, aud_frame, smooth_audio=True)
+            
             if done:
                 break
 
@@ -56,7 +58,7 @@ class GymRunner:
 
 def main(): 
     gr = GymRunner()
-    gr.run(1000)
+    gr.run(100000)
 
 
 if __name__ == '__main__':

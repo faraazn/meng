@@ -14,7 +14,6 @@ import pygame as pg
 import threading
 from tqdm import tqdm
 import queue
-import sounddevice as sd
 from image_viewer import SimpleImageViewer
 import collections
 import matplotlib.pyplot as plt

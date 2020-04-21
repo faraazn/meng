@@ -99,12 +99,13 @@ def main():
     rollouts.to(device)
 
     episode_rewards = deque(maxlen=10)
+    ep_rew = []
 
     start = time.time()
     num_updates = int(
         args.num_env_steps) // args.num_steps // args.num_processes
+    start = time.time()
     for j in range(num_updates):
-        print(f"update {j}")
         if args.use_linear_lr_decay:
             # decrease learning rate linearly
             utils.update_linear_schedule(
@@ -121,11 +122,10 @@ def main():
             # Observe reward and next obs
             #print(f"action {action}")
             obs, reward, done, infos = envs.step(action)
-
+            ep_rew.append(reward.sum())
             for info in infos:
                 if 'episode' in info.keys():
                     episode_rewards.append(info['episode']['r'])
-            episode_rewards.append(reward)
 
             # If done then clean the history of observations.
             masks = torch.FloatTensor(
@@ -165,8 +165,8 @@ def main():
         rollouts.after_update()
 
         # save for every interval-th episode or for the last epoch
-        if (j % args.save_interval == 0
-                or j == num_updates - 1) and args.save_dir != "":
+        if ((j+1) % args.save_interval == 0
+                or j+1 == num_updates) and args.save_dir != "":
             print("saving")
             save_path = os.path.join(args.save_dir, args.algo)
             try:
@@ -179,13 +179,13 @@ def main():
                 getattr(utils.get_vec_normalize(envs), 'ob_rms', None)
             ], os.path.join(save_path, args.env_name + ".pt"))
 
-        if j % args.log_interval == 0 and len(episode_rewards) > 1:
+        if (j+1) % args.log_interval == 0 and len(episode_rewards) > 1:
             print("logging")
             total_num_steps = (j + 1) * args.num_processes * args.num_steps
             end = time.time()
             print(
                 "Updates {}, num timesteps {}, FPS {} \n Last {} training episodes: mean/median reward {:.1f}/{:.1f}, min/max reward {:.1f}/{:.1f}\n"
-                .format(j, total_num_steps,
+                .format(j+1, total_num_steps,
                         int(total_num_steps / (end - start)),
                         len(episode_rewards), np.mean(episode_rewards),
                         np.median(episode_rewards), np.min(episode_rewards),
@@ -193,10 +193,17 @@ def main():
                         action_loss))
 
         if (args.eval_interval is not None and len(episode_rewards) > 1
-                and j % args.eval_interval == 0):
+                and (j+1) % args.eval_interval == 0):
             ob_rms = utils.get_vec_normalize(envs).ob_rms
             evaluate(actor_critic, ob_rms, args.env_name, args.seed,
                      args.num_processes, eval_log_dir, device)
+        
+        if (j+1)%1==0:
+            print(f"update {j+1} of {num_updates+1}: {time.time()-start}s")
+            print(sum(ep_rew))
+            print(len(ep_rew))
+            start = time.time()
+            ep_rew = []
 
 
 if __name__ == "__main__":
