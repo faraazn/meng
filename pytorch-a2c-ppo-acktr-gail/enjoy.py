@@ -23,7 +23,7 @@ parser.add_argument(
     help='log interval, one log per n updates (default: 10)')
 parser.add_argument(
     '--env-name',
-    default='sonicv0',#'SeaquestNoFrameskip-v4',
+    default='sonic-2',#'SeaquestNoFrameskip-v4',
     help='environment to train on (default: PongNoFrameskip-v4)')
 parser.add_argument(
     '--load-dir',
@@ -69,17 +69,6 @@ masks = torch.zeros(1, 1)
 
 obs = env.reset()
 
-if render_func is not None:
-    render_func('human')
-
-if args.env_name.find('Bullet') > -1:
-    import pybullet as p
-
-    torsoId = -1
-    for i in range(p.getNumBodies()):
-        if (p.getBodyInfo(i)[0].decode() == "torso"):
-            torsoId = i
-
 while True:
     with torch.no_grad():
         #print(f"obs {obs.shape}")
@@ -94,16 +83,11 @@ while True:
     #print(f"aud {aud_frame.shape}")
     masks.fill_(0.0 if done else 1.0)
 
-    if args.env_name.find('Bullet') > -1:
-        if torsoId > -1:
-            distance = 5
-            yaw = 0
-            humanPos, humanOrn = p.getBasePositionAndOrientation(torsoId)
-            p.resetDebugVisualizerCamera(distance, yaw, -20, humanPos)
-
-    if render_func is not None:
-        render_func('human')
-
     vid_frame = obs[0].detach().numpy().astype(np.uint8)
     vid_frame = vid_frame.transpose((1, 2, 0))
     renderer.render(vid_frame, aud_frame)
+
+    if done:
+        break
+
+renderer.close()

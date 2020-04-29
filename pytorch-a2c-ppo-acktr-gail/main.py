@@ -102,8 +102,7 @@ def main():
     ep_rew = []
 
     start = time.time()
-    num_updates = int(
-        args.num_env_steps) // args.num_steps // args.num_processes
+    num_updates = int(args.num_env_steps) // args.num_steps // args.num_processes
     start = time.time()
     for j in range(num_updates):
         if args.use_linear_lr_decay:

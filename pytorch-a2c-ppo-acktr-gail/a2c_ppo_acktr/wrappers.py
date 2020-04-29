@@ -89,3 +89,36 @@ class AllowBacktracking(Wrapper):
         rew = max(0, self._cur_x - self._max_x)
         self._max_x = max(self._max_x, self._cur_x)
         return obs, rew, done, info
+
+class SonicRewardWrapper(Wrapper):
+    """
+    Horizontal reward sums linearly to a total of 9000. 
+    """
+    def __init__(self, env):
+        super(SonicRewardWrapper, self).__init__(env)
+        self.max_x = 0
+        self.completion_bonus = 1000
+        self.timesteps = 0
+        self.max_timesteps = 4500
+        self.x_bonus = 9000
+        print("init sonic reward wrapper")
+
+    def reset(self, **kwargs): # pylint: disable=E0202
+        self.max_x = 0
+        self.timesteps = 0
+        return self.env.reset(**kwargs)
+
+    def step(self, action): # pylint: disable=E0202
+        obs, rew, done, info = self.env.step(action)
+        self.timesteps += 1
+        if info['x'] > self.max_x:
+            print(f"new max {info['x']}")
+        if info['screen_x_end'] > 0:
+            rew = max(0, info['x'] - self.max_x) * (self.x_bonus / info['screen_x_end'])
+        else:
+            print(f"info {info}")
+            rew = 0
+        
+        self.max_x = max(info['x'], self.max_x)
+
+        return obs, rew, done, info
