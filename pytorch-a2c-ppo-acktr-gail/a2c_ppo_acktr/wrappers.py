@@ -101,7 +101,6 @@ class SonicRewardWrapper(Wrapper):
         self.timesteps = 0
         self.max_timesteps = 4500
         self.x_bonus = 9000
-        print("init sonic reward wrapper")
 
     def reset(self, **kwargs): # pylint: disable=E0202
         self.max_x = 0
@@ -115,7 +114,6 @@ class SonicRewardWrapper(Wrapper):
             # reaches this case after losing life but not 3rd life
             rew = max(0, info['x'] - self.max_x) * (self.x_bonus / info['screen_x_end'])
         else:
-            #print(f"max {self.max_x}, info {info}")
             rew = 0
         
         self.max_x = max(info['x'], self.max_x)

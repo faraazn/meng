@@ -36,9 +36,7 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
         env = retro.make(
             game='SonicTheHedgehog-Genesis', state='LabyrinthZone.Act1')
         env = SonicDiscretizer(env)
-        print(f"env {env}")
         env = SonicRewardWrapper(env)
-        print(f"env {env}")
         env = RewardScaler(env, scale=0.005)
         env = StochasticFrameSkip(env, 4, 0.0)
         env = TimeLimit(env, max_episode_steps=4500)

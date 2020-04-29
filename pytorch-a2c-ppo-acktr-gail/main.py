@@ -19,6 +19,8 @@ from a2c_ppo_acktr.model import Policy
 from a2c_ppo_acktr.storage import RolloutStorage
 from evaluation import evaluate
 
+from torch.utils.tensorboard import SummaryWriter
+
 
 def main():
     args = get_args()
@@ -41,7 +43,6 @@ def main():
     envs = make_vec_envs(args.env_name, args.seed, args.num_processes,
                          args.gamma, args.log_dir, device, False)
 
-    print(f"envs.observation_space.shape {envs.observation_space.shape}")
     actor_critic = Policy(
         envs.observation_space.shape,
         envs.action_space,
@@ -90,6 +91,8 @@ def main():
             shuffle=True,
             drop_last=drop_last)
 
+    writer = SummaryWriter()
+
     rollouts = RolloutStorage(args.num_steps, args.num_processes,
                               envs.observation_space.shape, envs.action_space,
                               actor_critic.recurrent_hidden_state_size)
@@ -100,16 +103,17 @@ def main():
 
     episode_rewards = deque(maxlen=10)
 
-    start = time.time()
     num_updates = int(args.num_env_steps) // args.num_steps // args.num_processes
     start = time.time()
+    episode_num = 0
     for j in range(num_updates):
         if args.use_linear_lr_decay:
             # decrease learning rate linearly
             utils.update_linear_schedule(
                 agent.optimizer, j, num_updates,
                 agent.optimizer.lr if args.algo == "acktr" else args.lr)
-
+        
+        s = time.time()
         for step in range(args.num_steps):
             # Sample actions
             with torch.no_grad():
@@ -122,6 +126,9 @@ def main():
             for info in infos:
                 if 'max_x' in info.keys():
                     episode_rewards.append(info['max_x'])
+                if 'episode' in info.keys():
+                    writer.add_scalar('episode max_x', info['max_x'], episode_num)
+                    episode_num += 1
 
             # If done then clean the history of observations.
             masks = torch.FloatTensor(
@@ -131,11 +138,14 @@ def main():
                  for info in infos])
             rollouts.insert(obs, recurrent_hidden_states, action,
                             action_log_prob, value, reward, masks, bad_masks)
-
+        #print(f"  loop thru num steps {time.time()-s}s")
+        s = time.time()
         with torch.no_grad():
             next_value = actor_critic.get_value(
                 rollouts.obs[-1], rollouts.recurrent_hidden_states[-1],
                 rollouts.masks[-1]).detach()
+        #print(f"  next value {time.time()-s}s")
+        s = time.time()
 
         if args.gail:
             if j >= 10:
@@ -155,10 +165,16 @@ def main():
 
         rollouts.compute_returns(next_value, args.use_gae, args.gamma,
                                  args.gae_lambda, args.use_proper_time_limits)
+        #print(f"  compute returns {time.time()-s}s")
+        s = time.time()
 
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
+        #print(f"  agent update {time.time()-s}s")
+        s = time.time()
 
         rollouts.after_update()
+        #print(f"  after update {time.time()-s}s")
+        s = time.time()
 
         # save for every interval-th episode or for the last epoch
         if ((j+1) % args.save_interval == 0
@@ -194,6 +210,8 @@ def main():
             evaluate(actor_critic, ob_rms, args.env_name, args.seed,
                      args.num_processes, eval_log_dir, device)
         
-
+        print(f"{j+1} of {num_updates}: {time.time()-start}s")
+        start = time.time()
+    writer.close()
 if __name__ == "__main__":
     main()
