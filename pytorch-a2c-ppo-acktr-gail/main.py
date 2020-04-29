@@ -99,7 +99,6 @@ def main():
     rollouts.to(device)
 
     episode_rewards = deque(maxlen=10)
-    ep_rew = []
 
     start = time.time()
     num_updates = int(args.num_env_steps) // args.num_steps // args.num_processes
@@ -119,12 +118,10 @@ def main():
                     rollouts.masks[step])
 
             # Observe reward and next obs
-            #print(f"action {action}")
             obs, reward, done, infos = envs.step(action)
-            ep_rew.append(reward.sum())
             for info in infos:
-                if 'episode' in info.keys():
-                    episode_rewards.append(info['episode']['r'])
+                if 'max_x' in info.keys():
+                    episode_rewards.append(info['max_x'])
 
             # If done then clean the history of observations.
             masks = torch.FloatTensor(
@@ -197,13 +194,6 @@ def main():
             evaluate(actor_critic, ob_rms, args.env_name, args.seed,
                      args.num_processes, eval_log_dir, device)
         
-        if (j+1)%1==0:
-            print(f"update {j+1} of {num_updates+1}: {time.time()-start}s")
-            print(sum(ep_rew))
-            print(len(ep_rew))
-            start = time.time()
-            ep_rew = []
-
 
 if __name__ == "__main__":
     main()

@@ -111,14 +111,15 @@ class SonicRewardWrapper(Wrapper):
     def step(self, action): # pylint: disable=E0202
         obs, rew, done, info = self.env.step(action)
         self.timesteps += 1
-        if info['x'] > self.max_x:
-            print(f"new max {info['x']}")
         if info['screen_x_end'] > 0:
+            # reaches this case after losing life but not 3rd life
             rew = max(0, info['x'] - self.max_x) * (self.x_bonus / info['screen_x_end'])
         else:
-            print(f"info {info}")
+            #print(f"max {self.max_x}, info {info}")
             rew = 0
         
         self.max_x = max(info['x'], self.max_x)
+
+        info['max_x'] = self.max_x
 
         return obs, rew, done, info

@@ -37,15 +37,13 @@ class GymRunner:
         for i in range(num_steps):
             s = time.time()
             # obs is the video frame
-            #time.sleep(np.random.random()/5*i/1000+0.00)
-            #time.sleep(0.005)
+            time.sleep(0.005)
             
             obs, rew, done, info = self.env.step(self.env.action_space.sample())
             
             vid_frame = obs
             aud_frame = self.env.em.get_audio()
-            if rew != 0:
-                print(f"rew {rew}, x {info['x']}")
+            print(info)
             self.renderer.render(vid_frame, aud_frame, smooth_audio=True)
             
             if done:
@@ -58,7 +56,7 @@ class GymRunner:
 
 def main(): 
     gr = GymRunner()
-    gr.run(100000)
+    gr.run(1000)
 
 
 if __name__ == '__main__':
