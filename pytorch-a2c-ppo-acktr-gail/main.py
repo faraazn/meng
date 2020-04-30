@@ -43,12 +43,18 @@ def main():
     envs = make_vec_envs(args.env_name, args.seed, args.num_processes,
                          args.gamma, args.log_dir, device, False)
 
-    actor_critic = Policy(
-        envs.observation_space.shape,
-        envs.action_space,
-        base_kwargs={'recurrent': args.recurrent_policy})
+    if args.load:
+        actor_critic, env_step, episode_num = torch.load(f'trained_models/{args.load}')
+        print(f"loaded model {args.load} at episode {episode_num}")
+    else:
+        actor_critic = Policy(
+            envs.observation_space.shape,
+            envs.action_space,
+            base_kwargs={'recurrent': args.recurrent_policy})
+        episode_num = 0
+        env_step = 0
     actor_critic.to(device)
-
+    
     if args.algo == 'a2c':
         agent = algo.A2C_ACKTR(
             actor_critic,
@@ -103,17 +109,18 @@ def main():
 
     episode_rewards = deque(maxlen=10)
 
-    num_updates = int(args.num_env_steps) // args.num_steps // args.num_processes
+    args.num_env_steps = int(args.num_env_steps)
+    num_updates = args.num_env_steps // args.num_steps // args.num_processes
+    batch_size = args.num_steps * args.num_processes
     start = time.time()
-    episode_num = 0
-    for j in range(num_updates):
+    while env_step < args.num_env_steps:
+        s = time.time()
         if args.use_linear_lr_decay:
             # decrease learning rate linearly
             utils.update_linear_schedule(
                 agent.optimizer, j, num_updates,
                 agent.optimizer.lr if args.algo == "acktr" else args.lr)
         
-        s = time.time()
         for step in range(args.num_steps):
             # Sample actions
             with torch.no_grad():
@@ -127,7 +134,7 @@ def main():
                 if 'max_x' in info.keys():
                     episode_rewards.append(info['max_x'])
                 if 'episode' in info.keys():
-                    writer.add_scalar('episode max_x', info['max_x'], episode_num)
+                    writer.add_scalar('episode_max_x', info['max_x'], episode_num)
                     episode_num += 1
 
             # If done then clean the history of observations.
@@ -138,16 +145,13 @@ def main():
                  for info in infos])
             rollouts.insert(obs, recurrent_hidden_states, action,
                             action_log_prob, value, reward, masks, bad_masks)
-        #print(f"  loop thru num steps {time.time()-s}s")
-        s = time.time()
         with torch.no_grad():
             next_value = actor_critic.get_value(
                 rollouts.obs[-1], rollouts.recurrent_hidden_states[-1],
                 rollouts.masks[-1]).detach()
-        #print(f"  next value {time.time()-s}s")
-        s = time.time()
 
         if args.gail:
+            assert False
             if j >= 10:
                 envs.venv.eval()
 
@@ -165,53 +169,52 @@ def main():
 
         rollouts.compute_returns(next_value, args.use_gae, args.gamma,
                                  args.gae_lambda, args.use_proper_time_limits)
-        #print(f"  compute returns {time.time()-s}s")
-        s = time.time()
-
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
-        #print(f"  agent update {time.time()-s}s")
-        s = time.time()
-
         rollouts.after_update()
-        #print(f"  after update {time.time()-s}s")
-        s = time.time()
 
+        env_step += batch_size
+        
         # save for every interval-th episode or for the last epoch
-        if ((j+1) % args.save_interval == 0
-                or j+1 == num_updates) and args.save_dir != "":
-            print("saving")
+        fps = batch_size / (time.time()-s)
+        writer.add_scalar('fps', fps, env_step)
+        writer.add_scalar('value_loss', value_loss / batch_size, env_step)
+        writer.add_scalar('action_loss', action_loss / batch_size, env_step)
+        writer.add_scalar('dist_entropy', dist_entropy / batch_size, env_step)
+        writer.add_scalar('batch_max_x', max(episode_rewards), env_step)
+        prev_env_step = env_step + 1 - batch_size
+        if ((env_step+1)//args.save_interval > prev_env_step//args.save_interval or env_step+1 == args.num_env_steps) and args.save_dir != "":
             save_path = os.path.join(args.save_dir, args.algo)
             try:
                 os.makedirs(save_path)
             except OSError:
                 pass
-
+            
             torch.save([
                 actor_critic,
-                getattr(utils.get_vec_normalize(envs), 'ob_rms', None)
-            ], os.path.join(save_path, args.env_name + ".pt"))
+                env_step,
+                episode_num,
+            ], os.path.join(save_path, f"{args.env_name}-{env_step}-{episode_num}.pt"))
+            print("saved model")
 
-        if (j+1) % args.log_interval == 0 and len(episode_rewards) > 1:
-            print("logging")
-            total_num_steps = (j + 1) * args.num_processes * args.num_steps
+        if (env_step+1)//args.log_interval > prev_env_step//args.log_interval and len(episode_rewards) > 1:
             end = time.time()
-            print(
-                "Updates {}, num timesteps {}, FPS {} \n Last {} training episodes: mean/median reward {:.1f}/{:.1f}, min/max reward {:.1f}/{:.1f}\n"
-                .format(j+1, total_num_steps,
-                        int(total_num_steps / (end - start)),
-                        len(episode_rewards), np.mean(episode_rewards),
-                        np.median(episode_rewards), np.min(episode_rewards),
-                        np.max(episode_rewards), dist_entropy, value_loss,
-                        action_loss))
+            print("Env step {} of {}: {:.1f}s, {:.1f}fps".format(
+                env_step+1, args.num_env_steps, end-start, fps))
+            print("  Last {} episodes: mean/med reward {:.1f}/{:.1f}, min/max reward {:.1f}/{:.1f}".format(
+                len(episode_rewards), np.mean(episode_rewards),
+                np.median(episode_rewards), np.min(episode_rewards),
+                np.max(episode_rewards)))
+            print("  dist_entropy {:.5f}, value_loss {:.9f}, action_loss {:.9f}".format(
+                dist_entropy, value_loss, action_loss))
+            start = time.time()
 
         if (args.eval_interval is not None and len(episode_rewards) > 1
-                and (j+1) % args.eval_interval == 0):
+                and (env_step+1)//args.eval_interval > prev_env_step//args.eval_interval):
+            assert False
             ob_rms = utils.get_vec_normalize(envs).ob_rms
             evaluate(actor_critic, ob_rms, args.env_name, args.seed,
                      args.num_processes, eval_log_dir, device)
         
-        print(f"{j+1} of {num_updates}: {time.time()-start}s")
-        start = time.time()
     writer.close()
 if __name__ == "__main__":
     main()

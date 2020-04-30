@@ -101,22 +101,22 @@ def get_args():
     parser.add_argument(
         '--log-interval',
         type=int,
-        default=10,
-        help='log interval, one log per n updates (default: 10)')
+        default=10e4,
+        help='log interval, one log per n env steps (default: 1000)')
     parser.add_argument(
         '--save-interval',
         type=int,
-        default=10,
-        help='save interval, one save per n updates (default: 100)')
+        default=10e5,
+        help='save interval, one save per n env steps (default: 10000)')
     parser.add_argument(
         '--eval-interval',
         type=int,
         default=None,
-        help='eval interval, one eval per n updates (default: None)')
+        help='eval interval, one eval per n env steps (default: None)')
     parser.add_argument(
         '--num-env-steps',
         type=int,
-        default=10e4,#10e6,
+        default=10e6,
         help='number of environment steps to train (default: 10e6)')
     parser.add_argument(
         '--env-name',
@@ -150,9 +150,15 @@ def get_args():
         action='store_true',
         default=False,
         help='use a linear schedule on the learning rate')
+    parser.add_argument(
+        '--load',
+        default='',
+        help='start training a model from given checkpoint'
+    )
     args = parser.parse_args()
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
+    print(f"no_cuda {args.no_cuda}, is_available {torch.cuda.is_available()}, cuda {args.cuda}")
 
     assert args.algo in ['a2c', 'ppo', 'acktr']
     if args.recurrent_policy:
