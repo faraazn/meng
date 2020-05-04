@@ -15,26 +15,10 @@ import retro
 from .wrappers import TimeLimit, SonicRewardWrapper
 from .retro_wrappers import SonicDiscretizer, RewardScaler, StochasticFrameSkip, AllowBacktracking
 
-try:
-    import dm_control2gym
-except ImportError:
-    pass
-
-try:
-    import roboschool
-except ImportError:
-    pass
-
-try:
-    import pybullet_envs
-except ImportError:
-    pass
-
-
 def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     def _thunk():
         env = retro.make(
-            game='SonicTheHedgehog-Genesis', state='LabyrinthZone.Act1')
+            game='SonicTheHedgehog-Genesis', state='GreenHillZone.Act2')
         env = SonicDiscretizer(env)
         env = SonicRewardWrapper(env)
         env = RewardScaler(env, scale=0.005)
@@ -77,8 +61,6 @@ def make_vec_envs(env_name,
         envs = ShmemVecEnv(envs, context='forkserver')
     else:
         envs = DummyVecEnv(envs)
-        print(f"dummy {envs.observation_space.shape}")
-
 
     envs = VecPyTorch(envs, device)
     return envs

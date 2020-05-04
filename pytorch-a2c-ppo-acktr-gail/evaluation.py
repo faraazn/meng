@@ -1,8 +1,66 @@
 import numpy as np
+import time
 import torch
+import moviepy
 
 from a2c_ppo_acktr import utils
 from a2c_ppo_acktr.envs import make_vec_envs
+
+def write_eval_episode(writer, step, env_name, seed, device, actor_critic):
+    start = time.time()
+    env = make_vec_envs(
+        env_name,
+        seed + 1000,
+        1,
+        None,
+        None,
+        device=device,
+        allow_early_resets=False)
+
+    recurrent_hidden_states = torch.zeros(1, actor_critic.recurrent_hidden_state_size)
+    masks = torch.zeros(1, 1)
+
+    vid_frames = []
+    aud_frames = []
+    max_x = 0
+    obs = env.reset()
+    t = 0
+    while t < 450:  # max 30 sec
+        with torch.no_grad():
+            value, action, _, recurrent_hidden_states = actor_critic.act(
+                obs, recurrent_hidden_states, masks, deterministic=True)
+
+        # Obser reward and next obs
+        obs, reward, done, info = env.step(action)
+        aud_frame = env.envs[0].em.get_audio()[:,0]
+        aud_frames.append(aud_frame)
+        masks.fill_(0.0 if done else 1.0)
+
+        vid_frame = obs[0].detach().cpu().numpy().astype(np.uint8)
+        vid_frames.append(np.expand_dims(vid_frame, axis=0))
+
+        if done:
+            max_x = max(max_x, info[0]['max_x'])
+            break
+
+        t += 1
+
+    vid_frames = np.expand_dims(np.concatenate(vid_frames), axis=0)
+    aud_frames = np.expand_dims(np.concatenate(aud_frames) / 2**15, axis=0)
+    print(f"  generated data {time.time()-start}s")
+    start = time.time()
+
+    writer.add_video('eval_ep_video', vid_frames, global_step=step, fps=60)
+    print(f"  wrote video {time.time()-start}s")
+    start = time.time()
+    #writer.add_audio('eval_ep_audio', aud_frames)
+    print(f"  wrote audio {time.time()-start}s")
+    start = time.time()
+    writer.add_scalar('eval_ep_t', t+1, step)
+    writer.add_scalar('eval_ep_x', max_x, step)
+    print("  done.")
+
+    print(f"  wrote eval video and audio at env_step {step}: t={t+1}, x={max_x}, {time.time()-start}s")
 
 
 def evaluate(actor_critic, ob_rms, env_name, seed, num_processes, eval_log_dir,

@@ -17,7 +17,7 @@ from a2c_ppo_acktr.arguments import get_args
 from a2c_ppo_acktr.envs import make_vec_envs
 from a2c_ppo_acktr.model import Policy
 from a2c_ppo_acktr.storage import RolloutStorage
-from evaluation import evaluate
+from evaluation import write_eval_episode
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -181,20 +181,22 @@ def main():
         writer.add_scalar('action_loss', action_loss / batch_size, env_step)
         writer.add_scalar('dist_entropy', dist_entropy / batch_size, env_step)
         writer.add_scalar('batch_max_x', max(episode_rewards), env_step)
-        prev_env_step = env_step + 1 - batch_size
+        prev_env_step = max(0, env_step + 1 - batch_size)
         if ((env_step+1)//args.save_interval > prev_env_step//args.save_interval or env_step+1 == args.num_env_steps) and args.save_dir != "":
             save_path = os.path.join(args.save_dir, args.algo)
             try:
                 os.makedirs(save_path)
             except OSError:
                 pass
-            
+
             torch.save([
                 actor_critic,
                 env_step,
                 episode_num,
             ], os.path.join(save_path, f"{args.env_name}-{env_step}-{episode_num}.pt"))
             print("saved model")
+
+            write_eval_episode(writer, env_step, args.env_name, args.seed, device, actor_critic)
 
         if (env_step+1)//args.log_interval > prev_env_step//args.log_interval and len(episode_rewards) > 1:
             end = time.time()
@@ -208,12 +210,6 @@ def main():
                 dist_entropy, value_loss, action_loss))
             start = time.time()
 
-        if (args.eval_interval is not None and len(episode_rewards) > 1
-                and (env_step+1)//args.eval_interval > prev_env_step//args.eval_interval):
-            assert False
-            ob_rms = utils.get_vec_normalize(envs).ob_rms
-            evaluate(actor_critic, ob_rms, args.env_name, args.seed,
-                     args.num_processes, eval_log_dir, device)
         
     writer.close()
 if __name__ == "__main__":

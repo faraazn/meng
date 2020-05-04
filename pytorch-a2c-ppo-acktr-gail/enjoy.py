@@ -9,7 +9,7 @@ import torch
 from a2c_ppo_acktr.envs import VecPyTorch, make_vec_envs
 from a2c_ppo_acktr.utils import get_render_func, get_vec_normalize
 
-from renderer import Renderer
+#from renderer import Renderer
 
 sys.path.append('a2c_ppo_acktr')
 
@@ -34,6 +34,10 @@ parser.add_argument(
     action='store_true',
     default=False,
     help='whether to use a non-deterministic policy')
+parser.add_argument(
+    '--load',
+    default='',
+    help='name of model checkpoint to load')
 args = parser.parse_args()
 
 args.det = not args.non_det
@@ -47,47 +51,34 @@ env = make_vec_envs(
     device='cpu',
     allow_early_resets=False)
     
-#envs = make_vec_envs(args.env_name, args.seed, args.num_processes,
-#                         args.gamma, args.log_dir, device, False)
-
 # Get a render function
-render_func = None #get_render_func(env)
-renderer = Renderer()
+#renderer = Renderer()
 
 # We need to use the same statistics for normalization as used in training
-actor_critic, ob_rms = \
-            torch.load(os.path.join(args.load_dir, args.env_name + ".pt"))
+actor_critic, episode_num, env_step = torch.load(args.load, map_location=torch.device('cpu'))
+print(f"loaded {args.load} at episode {episode_num}, env step {env_step}")
 
-vec_norm = get_vec_normalize(env)
-if vec_norm is not None:
-    vec_norm.eval()
-    vec_norm.ob_rms = ob_rms
-
-recurrent_hidden_states = torch.zeros(1,
-                                      actor_critic.recurrent_hidden_state_size)
+recurrent_hidden_states = torch.zeros(1, actor_critic.recurrent_hidden_state_size)
 masks = torch.zeros(1, 1)
 
 obs = env.reset()
 
 while True:
     with torch.no_grad():
-        #print(f"obs {obs.shape}")
-        #print(f"ac {actor_critic.obs_shape}")
         value, action, _, recurrent_hidden_states = actor_critic.act(
             obs, recurrent_hidden_states, masks, deterministic=args.det)
 
     # Obser reward and next obs
-    obs, reward, done, _ = env.step(action)
-    #print(f"obs {obs.shape}")
+    obs, reward, done, info = env.step(action)
     aud_frame = env.envs[0].em.get_audio()
-    #print(f"aud {aud_frame.shape}")
     masks.fill_(0.0 if done else 1.0)
 
     vid_frame = obs[0].detach().numpy().astype(np.uint8)
     vid_frame = vid_frame.transpose((1, 2, 0))
-    renderer.render(vid_frame, aud_frame)
+    #renderer.render(vid_frame, aud_frame)
 
     if done:
+        print(f"max_x {info[0]['max_x']}, stage len {info[0]['screen_x_end']}")
         break
 
-renderer.close()
+#renderer.close()

@@ -15,34 +15,26 @@ class Flatten(nn.Module):
 class Policy(nn.Module):
     def __init__(self, obs_shape, action_space, base=None, base_kwargs=None):
         super(Policy, self).__init__()
-        print(f"policy obs_shape {obs_shape}")
         self.obs_shape = obs_shape
         if base_kwargs is None:
             base_kwargs = {}
         if base is None:
             if len(obs_shape) == 3:
-                print("cnn base")
                 base = CNNBase
             elif len(obs_shape) == 1:
-                print("mlp base")
                 base = MLPBase
             else:
                 raise NotImplementedError
 
-        print(f"init base with obs_shape {obs_shape}")
         self.base = base(obs_shape[0], **base_kwargs)
-        print(f"base {base}")
 
         if action_space.__class__.__name__ == "Discrete":
-            print("discrete")
             num_outputs = action_space.n
             self.dist = Categorical(self.base.output_size, num_outputs)
         elif action_space.__class__.__name__ == "Box":
-            print("box")
             num_outputs = action_space.shape[0]
             self.dist = DiagGaussian(self.base.output_size, num_outputs)
         elif action_space.__class__.__name__ == "MultiBinary":
-            print("multibinary")
             num_outputs = action_space.shape[0]
             self.dist = Bernoulli(self.base.output_size, num_outputs)
         else:
@@ -183,7 +175,6 @@ class CNNBase(NNBase):
                                constant_(x, 0), nn.init.calculate_gain('relu'))
 
         # sonic shape 4, 224, 320
-        print(f"num_inputs {num_inputs}, should be 3")
         self.main = nn.Sequential(
             init_(nn.Conv2d(num_inputs, 32, 8, stride=4)), nn.ReLU(),
             init_(nn.Conv2d(32, 64, 4, stride=4)), nn.ReLU(), # originally stride 2

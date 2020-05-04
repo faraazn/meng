@@ -102,4 +102,5 @@ venv.bak/
 
 trained_models/
 runs/
+runs*/
 .fuse_hidden*
