@@ -6,10 +6,10 @@ import moviepy
 from a2c_ppo_acktr import utils
 from a2c_ppo_acktr.envs import make_vec_envs
 
-def write_eval_episode(writer, step, env_name, seed, device, actor_critic):
+def write_eval_episode(writer, step, env_states, seed, device, actor_critic):
     start = time.time()
     env = make_vec_envs(
-        env_name,
+        env_states,
         seed + 1000,
         1,
         None,
@@ -32,8 +32,8 @@ def write_eval_episode(writer, step, env_name, seed, device, actor_critic):
 
         # Obser reward and next obs
         obs, reward, done, info = env.step(action)
-        aud_frame = env.envs[0].em.get_audio()[:,0]
-        aud_frames.append(aud_frame)
+        #aud_frame = env.envs[0].em.get_audio()[:,0]
+        #aud_frames.append(aud_frame)
         masks.fill_(0.0 if done else 1.0)
 
         vid_frame = obs[0].detach().cpu().numpy().astype(np.uint8)
@@ -46,21 +46,20 @@ def write_eval_episode(writer, step, env_name, seed, device, actor_critic):
         t += 1
 
     vid_frames = np.expand_dims(np.concatenate(vid_frames), axis=0)
-    aud_frames = np.expand_dims(np.concatenate(aud_frames) / 2**15, axis=0)
+    #aud_frames = np.expand_dims(np.concatenate(aud_frames) / 2**15, axis=0)
     print(f"  generated data {time.time()-start}s")
     start = time.time()
 
     writer.add_video('eval_ep_video', vid_frames, global_step=step, fps=60)
-    print(f"  wrote video {time.time()-start}s")
-    start = time.time()
+    #print(f"  wrote video {time.time()-start}s")
+    #start = time.time()
     #writer.add_audio('eval_ep_audio', aud_frames)
-    print(f"  wrote audio {time.time()-start}s")
-    start = time.time()
+    #print(f"  wrote audio {time.time()-start}s")
+    #start = time.time()
     writer.add_scalar('eval_ep_t', t+1, step)
     writer.add_scalar('eval_ep_x', max_x, step)
-    print("  done.")
 
-    print(f"  wrote eval video and audio at env_step {step}: t={t+1}, x={max_x}, {time.time()-start}s")
+    print(f"  wrote eval video at env_step {step}: t={t+1}, x={max_x}, {time.time()-start}s")
 
 
 def evaluate(actor_critic, ob_rms, env_name, seed, num_processes, eval_log_dir,

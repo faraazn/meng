@@ -101,12 +101,12 @@ def get_args():
     parser.add_argument(
         '--log-interval',
         type=int,
-        default=10e4,
+        default=1e5,
         help='log interval, one log per n env steps (default: 1000)')
     parser.add_argument(
         '--save-interval',
         type=int,
-        default=10e5,
+        default=1e6,
         help='save interval, one save per n env steps (default: 10000)')
     parser.add_argument(
         '--eval-interval',
@@ -116,8 +116,8 @@ def get_args():
     parser.add_argument(
         '--num-env-steps',
         type=int,
-        default=10e6,
-        help='number of environment steps to train (default: 10e6)')
+        default=1e7,
+        help='number of environment steps to train (default: 1e7)')
     parser.add_argument(
         '--env-name',
         default='sonicv1',#'PongNoFrameskip-v4',

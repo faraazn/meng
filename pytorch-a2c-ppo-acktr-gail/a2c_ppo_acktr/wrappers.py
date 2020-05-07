@@ -4,6 +4,62 @@ cv2.ocl.setUseOpenCL(False)
 import numpy as np
 import gym
 from .core_wrapper import Wrapper, ActionWrapper, RewardWrapper
+import retro
+import random
+
+
+class SonicJointEnv(gym.Env):
+    """
+    An environment that samples a new sub-environment at
+    every episode boundary.
+    This can be used for joint-training.
+    """
+
+    def __init__(self, env_states):
+        """
+        Create a joint environment.
+        Args:
+          env_states: names of retro game states to use.
+        """
+        self.env_states = env_states
+        self.env = None
+        self.em = None
+        self.env_idx = 0
+        
+        env = retro.make(
+            game='SonicTheHedgehog-Genesis', state=self.env_states[0])
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
+        env.close()
+
+    def reset(self, **kwargs):
+        if self.env is not None:
+            self.em = None
+            self.env.close()
+        self.env_idx = random.randrange(len(self.env_states))
+        env_state = self.env_states[self.env_idx]
+        self.env = retro.make(
+            game='SonicTheHedgehog-Genesis', state=env_state)
+        self.em = self.env.em
+        return self.env.reset(**kwargs)
+
+    def step(self, action):
+        obs, rew, done, info = self.env.step(action)
+        info = info.copy()
+        info['env_idx'] = self.env_idx
+        info['env_state'] = self.env_states[self.env_idx]
+        return obs, rew, done, info
+
+    def render(self, mode='human'):
+        if self.env is None:
+            return
+        return self.env.render(mode=mode)
+
+    def seed(self, seed=None):
+        if self.env is None:
+            return
+        return self.env.seed(seed=seed)
+
 
 class TimeLimit(Wrapper):
     def __init__(self, env, max_episode_steps=None):
@@ -22,6 +78,7 @@ class TimeLimit(Wrapper):
     def reset(self, **kwargs):
         self._elapsed_steps = 0
         return self.env.reset(**kwargs)
+    
 
 class ClipActionsWrapper(Wrapper):
     def step(self, action):
@@ -52,6 +109,7 @@ class SonicDiscretizer(ActionWrapper):
 
     def action(self, a): # pylint: disable=W0221
         return self._actions[a].copy()
+
 
 class RewardScaler(RewardWrapper):
     """

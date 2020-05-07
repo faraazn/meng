@@ -244,6 +244,7 @@ class SonicDiscretizer(ActionWrapper):
         #print(f"action {a}")
         a = a[0]
         return self._actions[a].copy()
+    
 
 class RewardScaler(RewardWrapper):
     """

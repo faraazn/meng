@@ -12,13 +12,14 @@ from .vec_env.shmem_vec_env import ShmemVecEnv
 from .vec_env.vec_normalize import VecNormalize as VecNormalize_
 
 import retro
-from .wrappers import TimeLimit, SonicRewardWrapper
+from .wrappers import SonicJointEnv, TimeLimit, SonicRewardWrapper
 from .retro_wrappers import SonicDiscretizer, RewardScaler, StochasticFrameSkip, AllowBacktracking
 
-def make_env(env_id, seed, rank, log_dir, allow_early_resets):
+
+
+def make_env(env_states, seed, rank, log_dir, allow_early_resets):
     def _thunk():
-        env = retro.make(
-            game='SonicTheHedgehog-Genesis', state='GreenHillZone.Act2')
+        env = SonicJointEnv(env_states)
         env = SonicDiscretizer(env)
         env = SonicRewardWrapper(env)
         env = RewardScaler(env, scale=0.005)
@@ -44,7 +45,7 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     return _thunk
 
 
-def make_vec_envs(env_name,
+def make_vec_envs(env_states,
                   seed,
                   num_processes,
                   gamma,
@@ -53,7 +54,7 @@ def make_vec_envs(env_name,
                   allow_early_resets,
                   num_frame_stack=None):
     envs = [
-        make_env(env_name, seed, i, log_dir, allow_early_resets)
+        make_env(env_states, seed, i, log_dir, allow_early_resets)
         for i in range(num_processes)
     ]
 

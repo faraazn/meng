@@ -21,6 +21,19 @@ from evaluation import write_eval_episode
 
 from torch.utils.tensorboard import SummaryWriter
 
+TRAIN_STATES = (
+    'GreenHillZone.Act1',  'GreenHillZone.Act3', 'MarbleZone.Act1', 
+    'MarbleZone.Act2',     'MarbleZone.Act3',    'SpringYardZone.Act2', 
+    'SpringYardZone.Act3', 'LabyrinthZone.Act1', 'LabyrinthZone.Act2', 
+    'LabyrinthZone.Act3',  'StarLightZone.Act1', 'StarLightZone.Act2',
+    'ScrapBrainZone.Act2', #'ScrapBrainZone.Act3'
+)
+
+EVAL_STATES = ('GreenHillZone.Act1',)
+
+TEST_STATES = (
+    'GreenHillZone.Act2', 'SpringYardZone.Act1', 'StarLightZone.Act3', 'ScrapBrainZone.Act1'
+)
 
 def main():
     args = get_args()
@@ -40,7 +53,7 @@ def main():
     torch.set_num_threads(1)
     device = torch.device("cuda:0" if args.cuda else "cpu")
 
-    envs = make_vec_envs(args.env_name, args.seed, args.num_processes,
+    envs = make_vec_envs(TRAIN_STATES, args.seed, args.num_processes,
                          args.gamma, args.log_dir, device, False)
 
     if args.load:
@@ -196,7 +209,13 @@ def main():
             ], os.path.join(save_path, f"{args.env_name}-{env_step}-{episode_num}.pt"))
             print("saved model")
 
-            write_eval_episode(writer, env_step, args.env_name, args.seed, device, actor_critic)
+            envs.close()
+            
+            write_eval_episode(writer, env_step, EVAL_STATES, args.seed, device, actor_critic)
+            
+            envs = make_vec_envs(TRAIN_STATES, args.seed, args.num_processes, args.gamma, args.log_dir, device, False)
+            obs = envs.reset()
+            rollouts.obs[0].copy_(obs)
 
         if (env_step+1)//args.log_interval > prev_env_step//args.log_interval and len(episode_rewards) > 1:
             end = time.time()
