@@ -17,25 +17,17 @@ from .retro_wrappers import SonicDiscretizer, RewardScaler, StochasticFrameSkip,
 
 
 
-def make_env(env_states, seed, rank, log_dir, allow_early_resets):
+def make_env(env_states, seed, rank, allow_early_resets, mode):
     def _thunk():
         env = SonicJointEnv(env_states)
         env = SonicDiscretizer(env)
         env = SonicRewardWrapper(env)
-        env = RewardScaler(env, scale=0.005)
+        if mode == 'train':
+            env = RewardScaler(env, scale=0.005)
         env = StochasticFrameSkip(env, 4, 0.0)
         env = TimeLimit(env, max_episode_steps=4500)
 
         env.seed(seed + rank)
-
-        #if str(env.__class__.__name__).find('TimeLimit') >= 0:
-        #    env = TimeLimitMask(env)
-
-        if log_dir is not None:
-            env = Monitor(
-                env,
-                os.path.join(log_dir, str(rank)),
-                allow_early_resets=allow_early_resets)
 
         # wrap for PyTorch convolutions
         env = TransposeImage(env, op=[2, 0, 1])
@@ -49,12 +41,13 @@ def make_vec_envs(env_states,
                   seed,
                   num_processes,
                   gamma,
-                  log_dir,
                   device,
                   allow_early_resets,
+                  mode,
                   num_frame_stack=None):
+    assert mode in ['train', 'eval']
     envs = [
-        make_env(env_states, seed, i, log_dir, allow_early_resets)
+        make_env(env_states, seed, i, allow_early_resets, mode)
         for i in range(num_processes)
     ]
 

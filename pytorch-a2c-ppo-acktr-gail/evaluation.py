@@ -12,11 +12,14 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
     # don't write videos that are too long
     MAX_WRITER = 450  # 30 sec with frame skip 4
     MAX_VID_SAVE = 4500  # 5 min with frame skip 4
+    assert eval_t > 0
 
-    eval_ep_rewards = {}
+    eval_dict = {'x': {}, '%': {}, 'r': {}}
     for env_state in env_states:
         start = time.time()
-        eval_ep_rewards[env_state] = []
+        eval_dict['x'][env_state] = []
+        eval_dict['%'][env_state] = []
+        eval_dict['r'][env_state] = []
         
         if vid_save_dir:
             vid_width = 320
@@ -32,19 +35,19 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             seed + 1000,
             1,
             None,
-            None,
             device=device,
-            allow_early_resets=False)
+            allow_early_resets=False,
+            mode='eval')
 
         recurrent_hidden_states = torch.zeros(1, actor_critic.recurrent_hidden_state_size)
         masks = torch.zeros(1, 1)
 
         vid_frames = []
         aud_frames = []
-        max_x = 0
         obs = env.reset()
         t = 0
         ep_reward = 0
+        last_info = None
         while t < eval_t:
             with torch.no_grad():
                 value, action, _, recurrent_hidden_states = actor_critic.act(
@@ -53,6 +56,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             # Obser reward and next obs
             obs, reward, done, info = env.step(action)
             ep_reward += reward
+            last_info = info
 
             #aud_frame = env.envs[0].em.get_audio()[:,0]
             #aud_frames.append(aud_frame)
@@ -68,9 +72,11 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                 
             if done:
                 r = ep_reward[0].detach().cpu().item()
-                eval_ep_rewards[env_state].append(r)
+                eval_dict['r'][env_state].append(r)
                 ep_reward = 0
-                max_x = max(max_x, info[0]['max_x'])
+
+                eval_dict['x'][env_state].append(info[0]['max_x'])
+                eval_dict['%'][env_state].append(info[0]['max_x'] / info[0]['screen_x_end'] * 100)
                 obs = env.reset()
 
             t += 1
@@ -79,10 +85,14 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         del env
 
         # if first episode did not run to completion, append its current reward
-        if not eval_ep_rewards[env_state]:
-            eval_ep_rewards[env_state].append(ep_reward)
+        if not eval_dict['r'][env_state]:
+            assert not eval_dict['x'][env_state] and not eval_dict['%'][env_state]
+            r = ep_reward[0].detach().cpu().item()
+            eval_dict['r'][env_state].append(r)
+            eval_dict['x'][env_state].append(last_info[0]['max_x'])
+            eval_dict['%'][env_state].append(last_info[0]['max_x'] / last_info[0]['screen_x_end'] * 100)
 
-        print(f"  generated eval data for {env_state}, max_x {max_x}: {time.time()-start}s")
+        print(f"  generated eval data for {env_state}: {time.time()-start}s")
 
         if writer:
             start = time.time()
@@ -94,8 +104,9 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             #writer.add_audio('eval_ep_audio', aud_frames)
             #print(f"  wrote audio {time.time()-start}s")
             #start = time.time()
-            writer.add_scalar(f'eval_max_x/{env_state}', max_x, step)
-
+            writer.add_scalar(f'eval_episode_x/{env_state}', np.mean(eval_dict['x'][env_state]), step)
+            writer.add_scalar(f'eval_episode_%/{env_state}', np.mean(eval_dict['%'][env_state]), step)
+            writer.add_scalar(f'eval_episode_r/{env_state}', np.mean(eval_dict['r'][env_state]), step)
             print(f"    wrote video to tensorboard: {time.time()-start}s")
 
         if vid_save_dir:
@@ -104,5 +115,5 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             print(f"    wrote video to {vid_save_dir}: {time.time()-start}s")
 
     # compute evaluation metric
-    score = np.mean([np.mean(eval_ep_rewards[env_state]) for env_state in env_states])
-    return score, eval_ep_rewards
+    score = np.mean([np.mean(eval_dict['r'][env_state]) for env_state in env_states])
+    return score, eval_dict
