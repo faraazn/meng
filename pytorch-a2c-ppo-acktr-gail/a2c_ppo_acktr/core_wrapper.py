@@ -15,7 +15,7 @@ class Wrapper(Env):
         self.observation_space = self.env.observation_space
         self.reward_range = self.env.reward_range
         self.metadata = self.env.metadata
-        self.em = self.env.em
+        #self.em = self.env.em
 
     def __getattr__(self, name):
         if name.startswith('_'):

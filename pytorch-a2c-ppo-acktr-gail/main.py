@@ -2,6 +2,8 @@ import copy
 import glob
 import os
 import time
+import random
+from datetime import datetime
 from collections import deque
 
 import gym
@@ -17,7 +19,7 @@ from a2c_ppo_acktr.arguments import get_args
 from a2c_ppo_acktr.envs import make_vec_envs
 from a2c_ppo_acktr.model import Policy
 from a2c_ppo_acktr.storage import RolloutStorage
-from evaluation import write_eval_episode
+from evaluation import evaluate
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -29,7 +31,9 @@ TRAIN_STATES = (
     'ScrapBrainZone.Act2', #'ScrapBrainZone.Act3'
 )
 
-EVAL_STATES = ('GreenHillZone.Act1',)
+EVAL_STATES = (
+    'GreenHillZone.Act1', 'MarbleZone.Act3', 'LabyrinthZone.Act1', 'StarLightZone.Act2'
+)
 
 TEST_STATES = (
     'GreenHillZone.Act2', 'SpringYardZone.Act1', 'StarLightZone.Act3', 'ScrapBrainZone.Act1'
@@ -40,15 +44,31 @@ def main():
 
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
 
     if args.cuda and torch.cuda.is_available() and args.cuda_deterministic:
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
 
+    # format MM-DD_hh-mm-ss 
+    run_name = str(datetime.now())[5:].replace(' ', '_').replace(':', '-').split('.')[0]
+    writer_dir = f"runs/test/{run_name}/"
+    
+    vid_save_dir = f"runs/test/{run_name}/videos/"
+    try:
+        os.makedirs(vid_save_dir)
+    except OSError:
+        pass
+    
+    ckpt_save_dir = f"runs/test/{run_name}/ckpts/"
+    try:
+        os.makedirs(ckpt_save_dir)
+    except OSError:
+        pass
+
     log_dir = os.path.expanduser(args.log_dir)
-    eval_log_dir = log_dir + "_eval"
     utils.cleanup_log_dir(log_dir)
-    utils.cleanup_log_dir(eval_log_dir)
 
     torch.set_num_threads(1)
     device = torch.device("cuda:0" if args.cuda else "cpu")
@@ -110,7 +130,7 @@ def main():
             shuffle=True,
             drop_last=drop_last)
 
-    writer = SummaryWriter()
+    writer = SummaryWriter(log_dir=writer_dir)
 
     rollouts = RolloutStorage(args.num_steps, args.num_processes,
                               envs.observation_space.shape, envs.action_space,
@@ -195,28 +215,27 @@ def main():
         writer.add_scalar('dist_entropy', dist_entropy / batch_size, env_step)
         writer.add_scalar('batch_max_x', max(episode_rewards), env_step)
         prev_env_step = max(0, env_step + 1 - batch_size)
-        if ((env_step+1)//args.save_interval > prev_env_step//args.save_interval or env_step+1 == args.num_env_steps) and args.save_dir != "":
-            save_path = os.path.join(args.save_dir, args.algo)
-            try:
-                os.makedirs(save_path)
-            except OSError:
-                pass
+        # TODO: fix this env_step+1 condition to actually trigger at last iteration
+        if ((env_step+1)//args.save_interval > prev_env_step//args.save_interval or env_step+1 == args.num_env_steps):
 
             torch.save([
                 actor_critic,
                 env_step,
                 episode_num,
-            ], os.path.join(save_path, f"{args.env_name}-{env_step}-{episode_num}.pt"))
-            print("saved model")
+            ], os.path.join(ckpt_save_dir, f"step{env_step}-ep{episode_num}.pt"))
+            print(f"Saved model at step {env_step}. Running evaluation.")
 
             envs.close()
-            
-            write_eval_episode(writer, env_step, EVAL_STATES, args.seed, device, actor_critic)
-            
+            del envs
+            eval_score, e_dict = evaluate(EVAL_STATES, args.seed, device, actor_critic, 10000, env_step, writer, vid_save_dir)
+            print(f"  Evaluation score: {eval_score}")
+            print(f"    eval ep rewards: {e_dict}")
+            writer.add_scalar('eval_score', eval_score, env_step)
+
             envs = make_vec_envs(TRAIN_STATES, args.seed, args.num_processes, args.gamma, args.log_dir, device, False)
             obs = envs.reset()
             rollouts.obs[0].copy_(obs)
-
+        
         if (env_step+1)//args.log_interval > prev_env_step//args.log_interval and len(episode_rewards) > 1:
             end = time.time()
             print("Env step {} of {}: {:.1f}s, {:.1f}fps".format(
