@@ -92,7 +92,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             eval_dict['x'][env_state].append(last_info[0]['max_x'])
             eval_dict['%'][env_state].append(last_info[0]['max_x'] / last_info[0]['screen_x_end'] * 100)
 
-        print(f"  generated eval data for {env_state}: {time.time()-start}s")
+        print(f"    generated eval data for {env_state}: {time.time()-start}s")
 
         if writer:
             start = time.time()
@@ -107,12 +107,12 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             writer.add_scalar(f'eval_episode_x/{env_state}', np.mean(eval_dict['x'][env_state]), step)
             writer.add_scalar(f'eval_episode_%/{env_state}', np.mean(eval_dict['%'][env_state]), step)
             writer.add_scalar(f'eval_episode_r/{env_state}', np.mean(eval_dict['r'][env_state]), step)
-            print(f"    wrote video to tensorboard: {time.time()-start}s")
+            print(f"      wrote video to tensorboard: {time.time()-start}s")
 
         if vid_save_dir:
             start = time.time()
             vid_record.release()
-            print(f"    wrote video to {vid_save_dir}: {time.time()-start}s")
+            print(f"      wrote video to {vid_save_dir}: {time.time()-start}s")
 
     # compute evaluation metric
     score = np.mean([np.mean(eval_dict['r'][env_state]) for env_state in env_states])
