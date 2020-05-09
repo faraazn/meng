@@ -48,7 +48,7 @@ def get_args():
     parser.add_argument(
         '--max-grad-norm',
         type=float,
-        default=0.5,
+        default=5,
         help='max norm of gradients (default: 0.5)')
     parser.add_argument(
         '--seed', type=int, default=1, help='random seed (default: 1)')
@@ -90,7 +90,7 @@ def get_args():
     parser.add_argument(
         '--save-interval',
         type=int,
-        default=5e6,
+        default=5e5,
         help='save interval, one save per n env steps (default: 10000)')
     parser.add_argument(
         '--eval-interval',

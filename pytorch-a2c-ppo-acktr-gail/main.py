@@ -76,23 +76,23 @@ def main():
     # format MM-DD_hh-mm-ss 
     run_name = str(datetime.now())[5:].replace(' ', '_').replace(':', '-').split('.')[0]
 
-    solo_env_steps = 1e3
-    eval_env_steps = 1e2
+    solo_env_steps = 1e5
+    eval_env_steps = 1e4
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo/")
     for env_state in ALL_STATES:
         print(f"[train] Starting {env_state} ppo training")
         init_model = get_newest_ckpt_path(f"{args.load}/ppo/ckpts")
-        model = train([env_state], f"runs/{run_name}/ppo/{env_state}", args, solo_env_steps, device, writer, env_state, init_model)
-        eval_score, _ = evaluate([env_state], args.seed, device, model[0], eval_env_steps, model[1], writer, None)
+        model, eval_score, _ = train(
+            [env_state], f"runs/{run_name}/ppo/{env_state}", args, solo_env_steps, eval_env_steps, device, writer, env_state, init_model)
         print(f"[train] {env_state} ppo score {eval_score}\n")
     writer.close()
 
-    joint_env_steps = 1e4
+    joint_env_steps = 1e6
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint/")
     print(f"[train] Starting ppo-joint training")
     init_model = get_newest_ckpt_path(f"{args.load}/ppo-joint/ckpts")
-    joint_model = train(TRAIN_STATES, f"runs/{run_name}/ppo-joint", args, joint_env_steps, device, writer, 'joint', init_model)
-    eval_score, _ = evaluate(ALL_STATES, args.seed, device, model[0], eval_env_steps, model[1], writer, None)
+    joint_model, eval_score, _ = train(
+        TRAIN_STATES, f"runs/{run_name}/ppo-joint", args, joint_env_steps, eval_env_steps, device, writer, 'joint', init_model)
     print(f"[train] ppo-joint score {eval_score}\n")
     writer.close()
 
@@ -103,8 +103,8 @@ def main():
         if init_model is None:
             init_model = list(joint_model)
             init_model[1] = 0  # reset step to 0
-        model = train([env_state], f"runs/{run_name}/ppo-joint-train/{env_state}", args, solo_env_steps, device, writer, env_state, init_model)
-        eval_score, _ = evaluate([env_state], args.seed, device, model[0], eval_env_steps, model[1], writer, None)
+        model, eval_score, _ = train(
+            [env_state], f"runs/{run_name}/ppo-joint-train/{env_state}", args, solo_env_steps, eval_env_steps, device, writer, env_state, init_model)
         print(f"[train] {env_state} ppo-joint-train score {eval_score}\n")
     writer.close()
 
@@ -115,8 +115,8 @@ def main():
         if init_model is None:
             init_model = list(joint_model)
             init_model[1] = 0  # reset step to 0
-        model = train([env_state], f"runs/{run_name}/ppo-joint-test/{env_state}", args, solo_env_steps, device, writer, env_state, init_model)
-        eval_score, _ = evaluate([env_state], args.seed, device, model[0], eval_env_steps, model[1], writer, None)
+        model, eval_score, _ = train(
+            [env_state], f"runs/{run_name}/ppo-joint-test/{env_state}", args, solo_env_steps, eval_env_steps, device, writer, env_state, init_model)
         print(f"[train] {env_state} ppo-joint-test score {eval_score}\n")
     writer.close()
 

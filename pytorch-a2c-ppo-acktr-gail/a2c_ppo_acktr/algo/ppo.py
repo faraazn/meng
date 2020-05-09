@@ -41,7 +41,6 @@ class PPO():
         value_loss_epoch = 0
         action_loss_epoch = 0
         dist_entropy_epoch = 0
-        #print(f"    setup {time.time()-s}")
         for e in range(self.ppo_epoch):
             s = time.time()
             
@@ -52,21 +51,18 @@ class PPO():
                 data_generator = rollouts.feed_forward_generator(
                     advantages, self.num_mini_batch)
 
-            #print(f"      setup2 {time.time()-s}")
             for sample in data_generator:
                 s = time.time()
 
                 obs_batch, recurrent_hidden_states_batch, actions_batch, \
                    value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, \
                         adv_targ = sample
-                #print(f"        get batch {time.time()-s}")
                 s = time.time()
 
                 # Reshape to do in a single forward pass for all steps
                 values, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions(
                     obs_batch, recurrent_hidden_states_batch, masks_batch,
                     actions_batch)
-                #print(f"        evaluate actions {time.time()-s}")
                 s = time.time()
 
                 ratio = torch.exp(action_log_probs -
@@ -75,7 +71,6 @@ class PPO():
                 surr2 = torch.clamp(ratio, 1.0 - self.clip_param,
                                     1.0 + self.clip_param) * adv_targ
                 action_loss = -torch.min(surr1, surr2).mean()
-                #print(f"        action loss {time.time()-s}")
                 s = time.time()
 
                 if self.use_clipped_value_loss:
@@ -90,18 +85,14 @@ class PPO():
                     value_loss = 0.5 * (return_batch - values).pow(2).mean()
 
                 self.optimizer.zero_grad()
-                #print(f"        zero grad {time.time()-s}")
                 s = time.time()
                 (value_loss * self.value_loss_coef + action_loss -
                  dist_entropy * self.entropy_coef).backward()
-                #print(f"        backward {time.time()-s}")
                 s = time.time()
                 nn.utils.clip_grad_norm_(self.actor_critic.parameters(),
                                          self.max_grad_norm)
-                #print(f"        clip grad norm {time.time()-s}")
                 s = time.time()
                 self.optimizer.step()
-                #print(f"        optimizer step {time.time()-s}")
                 s = time.time()
 
                 value_loss_epoch += value_loss.item()

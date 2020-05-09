@@ -29,7 +29,9 @@ ID_2_ZONE = {
     3: 'LabyrinthZone', 4: 'StarLightZone', 5: 'ScrapBrainZone'
 }
 
-def train(train_states, run_dir, args, num_env_steps, device, writer, writer_name, init_model=None):
+screen_x_end = {}
+
+def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, writer, writer_name, init_model=None):
     envs = make_vec_envs(train_states, args.seed, args.num_processes,
                          args.gamma, device, False, 'train')
 
@@ -100,12 +102,14 @@ def train(train_states, run_dir, args, num_env_steps, device, writer, writer_nam
             # Observe reward and next obs
             obs, reward, dones, infos = envs.step(action)
             for done, info in zip(dones, infos):
+                env_state = f"{ID_2_ZONE[info['zone']]}.Act{info['act']+1}"
+                if env_state not in screen_x_end and info['screen_x_end'] > 0:
+                    screen_x_end[env_state] = info['screen_x_end']
                 if 'max_x' in info.keys():
                     episode_rewards.append(info['max_x'])
                 if done:
-                    env_state = f"{ID_2_ZONE[info['zone']]}.Act{info['act']+1}"
                     writer.add_scalar(f'train_episode_x/{env_state}', info['max_x'], env_step)
-                    writer.add_scalar(f'train_episode_%/{env_state}', info['max_x']/info['screen_x_end']*100, env_step)
+                    writer.add_scalar(f'train_episode_%/{env_state}', info['max_x']/screen_x_end[env_state]*100, env_step)
                     episode_num += 1
 
             # If done then clean the history of observations.
@@ -128,14 +132,21 @@ def train(train_states, run_dir, args, num_env_steps, device, writer, writer_nam
 
         env_step += batch_size
         
-        # save for every interval-th episode or for the last epoch
+        # write training metrics for each batch
         fps = batch_size / (time.time()-s)
         writer.add_scalar(f'fps/{writer_name}', fps, env_step)
         writer.add_scalar(f'value_loss/{writer_name}', value_loss / batch_size, env_step)
         writer.add_scalar(f'action_loss/{writer_name}', action_loss / batch_size, env_step)
         writer.add_scalar(f'dist_entropy/{writer_name}', dist_entropy / batch_size, env_step)
+        total_norm = 0
+        for p in list(filter(lambda p: p.grad is not None, actor_critic.parameters())):
+            param_norm = p.grad.data.norm(2)
+            total_norm += param_norm.item() ** 2
+        total_norm = total_norm ** (1. / 2)
+        writer.add_scalar(f'grad_norm/{writer_name}', total_norm, env_step)
         prev_env_step = max(0, env_step + 1 - batch_size)
         
+        # print log to console
         if (env_step+1)//args.log_interval > prev_env_step//args.log_interval and len(episode_rewards) > 1:
             end = time.time()
             print("  [log] Env step {} of {}: {:.1f}s, {:.1f}fps".format(
@@ -148,8 +159,8 @@ def train(train_states, run_dir, args, num_env_steps, device, writer, writer_nam
                 dist_entropy, value_loss, action_loss))
             start = time.time()
 
-        # TODO: fix this env_step+1 condition to actually trigger at last iteration
-        if ((env_step+1)//args.save_interval > prev_env_step//args.save_interval or env_step+1 == num_env_steps):
+        # save model to ckpt and run evaluation
+        if ((env_step+1)//args.save_interval > prev_env_step//args.save_interval):
 
             torch.save([
                 actor_critic,
@@ -162,7 +173,7 @@ def train(train_states, run_dir, args, num_env_steps, device, writer, writer_nam
             envs.close()
             del envs  # close does not actually get rid of envs, need to del
             eval_score, e_dict = evaluate(train_states, args.seed, device, actor_critic, 10000, env_step, writer, vid_save_dir)
-            print(f"    Evaluation score: {eval_score}")
+            print(f"  [eval] Evaluation score: {eval_score}")
             writer.add_scalar('eval_score', eval_score, env_step)
 
             envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, device, False, 'train')
@@ -177,8 +188,11 @@ def train(train_states, run_dir, args, num_env_steps, device, writer, writer_nam
         run_name
     ], os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt"))
     print(f"  [save] Final model saved at step {env_step+1}.")
-    
-    writer.close()
+
+    # final model eval
     envs.close()
     del envs
-    return actor_critic, env_step, episode_num, run_name
+    eval_score, eval_dict = evaluate(train_states, args.seed, device, actor_critic, eval_env_steps, env_step, writer, vid_save_dir)
+    print(f"  [eval] Final model evaluation score: {eval_score}")
+
+    return (actor_critic, env_step, episode_num, run_name), eval_score, eval_dict
