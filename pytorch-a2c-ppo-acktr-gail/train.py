@@ -29,7 +29,7 @@ ID_2_ZONE = {
     3: 'LabyrinthZone', 4: 'StarLightZone', 5: 'ScrapBrainZone'
 }
 
-def train(train_states, run_dir, args, num_env_steps, device, init_model=None):
+def train(train_states, run_dir, args, num_env_steps, device, writer, writer_name, init_model=None):
     envs = make_vec_envs(train_states, args.seed, args.num_processes,
                          args.gamma, device, False, 'train')
 
@@ -46,7 +46,6 @@ def train(train_states, run_dir, args, num_env_steps, device, init_model=None):
     actor_critic.to(device)
     
     run_name = run_dir.replace('/', '_')
-    writer_dir = run_dir
     vid_save_dir = f"{run_dir}/videos/"
     try:
         os.makedirs(vid_save_dir)
@@ -69,8 +68,6 @@ def train(train_states, run_dir, args, num_env_steps, device, init_model=None):
         assert False, 'JERK not implemented yet.'
     else:
         assert False, f'Invalid algorithm provided.'
-
-    writer = SummaryWriter(log_dir=writer_dir)
 
     rollouts = RolloutStorage(args.num_steps, args.num_processes,
                               envs.observation_space.shape, envs.action_space,
@@ -133,10 +130,10 @@ def train(train_states, run_dir, args, num_env_steps, device, init_model=None):
         
         # save for every interval-th episode or for the last epoch
         fps = batch_size / (time.time()-s)
-        writer.add_scalar('fps', fps, env_step)
-        writer.add_scalar('loss/value_loss', value_loss / batch_size, env_step)
-        writer.add_scalar('loss/action_loss', action_loss / batch_size, env_step)
-        writer.add_scalar('dist_entropy', dist_entropy / batch_size, env_step)
+        writer.add_scalar(f'fps/{writer_name}', fps, env_step)
+        writer.add_scalar(f'value_loss/{writer_name}', value_loss / batch_size, env_step)
+        writer.add_scalar(f'action_loss/{writer_name}', action_loss / batch_size, env_step)
+        writer.add_scalar(f'dist_entropy/{writer_name}', dist_entropy / batch_size, env_step)
         prev_env_step = max(0, env_step + 1 - batch_size)
         
         if (env_step+1)//args.log_interval > prev_env_step//args.log_interval and len(episode_rewards) > 1:

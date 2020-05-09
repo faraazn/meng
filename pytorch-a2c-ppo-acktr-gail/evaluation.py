@@ -48,6 +48,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         t = 0
         ep_reward = 0
         last_info = None
+        screen_x_end = None
         while t < eval_t:
             with torch.no_grad():
                 value, action, _, recurrent_hidden_states = actor_critic.act(
@@ -57,6 +58,9 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             obs, reward, done, info = env.step(action)
             ep_reward += reward
             last_info = info
+            
+            if screen_x_end is None and info[0]['screen_x_end'] > 0:  # can be 0 when sonic falls..?
+                screen_x_end = info[0]['screen_x_end']
 
             #aud_frame = env.envs[0].em.get_audio()[:,0]
             #aud_frames.append(aud_frame)
@@ -76,7 +80,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                 ep_reward = 0
 
                 eval_dict['x'][env_state].append(info[0]['max_x'])
-                eval_dict['%'][env_state].append(info[0]['max_x'] / info[0]['screen_x_end'] * 100)
+                eval_dict['%'][env_state].append(info[0]['max_x'] / screen_x_end * 100)
                 obs = env.reset()
 
             t += 1
@@ -90,7 +94,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             r = ep_reward[0].detach().cpu().item()
             eval_dict['r'][env_state].append(r)
             eval_dict['x'][env_state].append(last_info[0]['max_x'])
-            eval_dict['%'][env_state].append(last_info[0]['max_x'] / last_info[0]['screen_x_end'] * 100)
+            eval_dict['%'][env_state].append(last_info[0]['max_x'] / screen_x_end * 100)
 
         print(f"    generated eval data for {env_state}: {time.time()-start}s")
 
