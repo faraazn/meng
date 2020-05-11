@@ -54,7 +54,7 @@ def get_newest_ckpt_path(load_dir):
 
     newest_ckpt = None
     for ckpt_name in ckpt_names:
-      ckpt = torch.load(ckpt_name)
+      ckpt = torch.load(os.path.join(load_dir, ckpt_name))
       if newest_ckpt is None or ckpt[2] > newest_ckpt[2]:  # index 2 is ckpt env_step
           newest_ckpt = ckpt
     return newest_ckpt
@@ -76,21 +76,22 @@ def main():
     # format MM-DD_hh-mm-ss 
     run_name = str(datetime.now())[5:].replace(' ', '_').replace(':', '-').split('.')[0]
 
-    solo_env_steps = 1e5
-    eval_env_steps = 1e4
+    solo_env_steps = 5e6
+    eval_env_steps = 1e5
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo/")
     for env_state in ALL_STATES:
         print(f"[train] Starting {env_state} ppo training")
-        init_model = get_newest_ckpt_path(f"{args.load}/ppo/ckpts")
+        init_model = get_newest_ckpt_path(os.path.join(f"{args.load}", f"ppo/{env_state}/ckpts/"))
         model, eval_score, _ = train(
             [env_state], f"runs/{run_name}/ppo/{env_state}", args, solo_env_steps, eval_env_steps, device, writer, env_state, init_model)
         print(f"[train] {env_state} ppo score {eval_score}\n")
     writer.close()
 
-    joint_env_steps = 1e6
+    return
+    joint_env_steps = 3e7
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint/")
     print(f"[train] Starting ppo-joint training")
-    init_model = get_newest_ckpt_path(f"{args.load}/ppo-joint/ckpts")
+    init_model = get_newest_ckpt_path(os.path.join(f"{args.load}", "ppo-joint/ckpts/"))
     joint_model, eval_score, _ = train(
         TRAIN_STATES, f"runs/{run_name}/ppo-joint", args, joint_env_steps, eval_env_steps, device, writer, 'joint', init_model)
     print(f"[train] ppo-joint score {eval_score}\n")
@@ -99,7 +100,7 @@ def main():
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint-train/")
     for env_state in TRAIN_STATES:
         print(f"[train] Starting {env_state} ppo-joint-train training")
-        init_model = get_newest_ckpt_path(f"{args.load}/ppo-joint-train/ckpts")
+        init_model = get_newest_ckpt_path(os.path.join(f"{args.load}", f"ppo-joint-train/{env_state}/ckpts/"))
         if init_model is None:
             init_model = list(joint_model)
             init_model[1] = 0  # reset step to 0
@@ -111,7 +112,7 @@ def main():
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint-test/")
     for env_state in TEST_STATES:
         print(f"[train] Starting {env_state} ppo-joint-test training")
-        init_model = get_newest_ckpt_path(f"{args.load}/ppo-joint-test/ckpts")
+        init_model = get_newest_ckpt_path(os.path.join(f"{args.load}", f"ppo-joint-test/{env_state}/ckpts/"))
         if init_model is None:
             init_model = list(joint_model)
             init_model[1] = 0  # reset step to 0

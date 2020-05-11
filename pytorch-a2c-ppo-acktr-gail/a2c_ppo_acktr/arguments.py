@@ -85,12 +85,12 @@ def get_args():
     parser.add_argument(
         '--log-interval',
         type=int,
-        default=1e5,
+        default=1e6,
         help='log interval, one log per n env steps (default: 1000)')
     parser.add_argument(
         '--save-interval',
         type=int,
-        default=5e5,
+        default=3e6,
         help='save interval, one save per n env steps (default: 10000)')
     parser.add_argument(
         '--eval-interval',
