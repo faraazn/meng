@@ -87,7 +87,6 @@ def main():
         print(f"[train] {env_state} ppo score {eval_score}\n")
     writer.close()
 
-    return
     joint_env_steps = 3e7
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint/")
     print(f"[train] Starting ppo-joint training")

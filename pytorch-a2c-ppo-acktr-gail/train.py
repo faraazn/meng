@@ -29,7 +29,6 @@ ID_2_ZONE = {
     3: 'LabyrinthZone', 4: 'StarLightZone', 5: 'ScrapBrainZone'
 }
 
-screen_x_end = {}
 
 def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, writer, writer_name, init_model=None):
     envs = make_vec_envs(train_states, args.seed, args.num_processes,
@@ -102,14 +101,11 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             # Observe reward and next obs
             obs, reward, dones, infos = envs.step(action)
             for done, info in zip(dones, infos):
-                env_state = f"{ID_2_ZONE[info['zone']]}.Act{info['act']+1}"
-                if env_state not in screen_x_end and info['screen_x_end'] > 0:
-                    screen_x_end[env_state] = info['screen_x_end']
-                if 'max_x' in info.keys():
-                    episode_rewards.append(info['max_x'])
+                env_state = info['env_state']
                 if done:
                     writer.add_scalar(f'train_episode_x/{env_state}', info['max_x'], env_step)
-                    writer.add_scalar(f'train_episode_%/{env_state}', info['max_x']/screen_x_end[env_state]*100, env_step)
+                    writer.add_scalar(f'train_episode_%/{env_state}', info['max_x']/info['lvl_max_x']*100, env_step)
+                    writer.add_scalar(f'train_episode_r/{env_state}', info['sum_r'], env_step)
                     episode_num += 1
 
             # If done then clean the history of observations.

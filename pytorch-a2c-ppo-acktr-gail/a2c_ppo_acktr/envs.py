@@ -12,8 +12,8 @@ from .vec_env.shmem_vec_env import ShmemVecEnv
 from .vec_env.vec_normalize import VecNormalize as VecNormalize_
 
 import retro
-from .wrappers import SonicJointEnv, TimeLimit, SonicRewardWrapper
-from .retro_wrappers import SonicDiscretizer, RewardScaler, StochasticFrameSkip, AllowBacktracking
+from .wrappers import SonicJointEnv, TimeLimit, AllowBacktracking, SonicMaxXSumRInfo, SonicDiscretizer
+from .retro_wrappers import SonicDiscretizer, RewardScaler, StochasticFrameSkip
 
 
 
@@ -21,7 +21,8 @@ def make_env(env_states, seed, rank, allow_early_resets, mode):
     def _thunk():
         env = SonicJointEnv(env_states)
         env = SonicDiscretizer(env)
-        env = SonicRewardWrapper(env)
+        env = AllowBacktracking(env)
+        env = SonicMaxXSumRInfo(env)
         if mode == 'train':
             env = RewardScaler(env, scale=0.005)
         env = StochasticFrameSkip(env, 4, 0.0)

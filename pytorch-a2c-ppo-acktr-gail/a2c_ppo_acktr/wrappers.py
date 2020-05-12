@@ -7,6 +7,14 @@ from .core_wrapper import Wrapper, ActionWrapper, RewardWrapper
 import retro
 import random
 
+ZONE_ACT_2_LVL_MAX_X = {
+    "GreenHillZone.Act1":  9568, "GreenHillZone.Act2":  8032,  "GreenHillZone.Act3":  10538,
+    "MarbleZone.Act1":     6240, "MarbleZone.Act2":     6240,  "MarbleZone.Act3":     5920,
+    "SpringYardZone.Act1": 9056, "SpringYardZone.Act2": 10592, "SpringYardZone.Act3": 11139,
+    "LabyrinthZone.Act1":  6736, "LabyrinthZone.Act2":  4432,  "LabyrinthZone.Act3":  7364,
+    "StarLightZone.Act1":  8288, "StarLightZone.Act2":  8288,  "StarLightZone.Act3":  8008,
+    "ScrapBrainZone.Act1": 8800, "ScrapBrainZone.Act2": 7904
+}
 
 class SonicJointEnv(gym.Env):
     """
@@ -28,6 +36,7 @@ class SonicJointEnv(gym.Env):
         
         env = retro.make(
             game='SonicTheHedgehog-Genesis', state=self.env_states[0])
+            #scenario='SonicTheHedgehog-Genesis/contest.json')
         self.action_space = env.action_space
         self.observation_space = env.observation_space
         env.close()
@@ -47,7 +56,9 @@ class SonicJointEnv(gym.Env):
         obs, rew, done, info = self.env.step(action)
         info = info.copy()
         info['env_idx'] = self.env_idx
-        info['env_state'] = self.env_states[self.env_idx]
+        env_state = self.env_states[self.env_idx]
+        info['env_state'] = env_state
+        info['lvl_max_x'] = ZONE_ACT_2_LVL_MAX_X[env_state]
         return obs, rew, done, info
 
     def render(self, mode='human'):
@@ -148,34 +159,30 @@ class AllowBacktracking(Wrapper):
         self._max_x = max(self._max_x, self._cur_x)
         return obs, rew, done, info
 
-class SonicRewardWrapper(Wrapper):
+class SonicMaxXSumRInfo(Wrapper):
     """
     Horizontal reward sums linearly to a total of 9000. 
     """
     def __init__(self, env):
-        super(SonicRewardWrapper, self).__init__(env)
+        super(SonicMaxXSumRInfo, self).__init__(env)
         self.max_x = 0
-        self.completion_bonus = 1000
-        self.timesteps = 0
-        self.max_timesteps = 4500
-        self.x_bonus = 9000
+        self.sum_r = 0
+        self.start_x = -1
 
     def reset(self, **kwargs): # pylint: disable=E0202
         self.max_x = 0
-        self.timesteps = 0
+        self.sum_r = 0
+        self.start_x = -1
         return self.env.reset(**kwargs)
 
     def step(self, action): # pylint: disable=E0202
         obs, rew, done, info = self.env.step(action)
-        self.timesteps += 1
-        if info['screen_x_end'] > 0:
-            # reaches this case after losing life but not 3rd life
-            rew = max(0, info['x'] - self.max_x) * (self.x_bonus / info['screen_x_end'])
-        else:
-            rew = 0
-        
+        if self.start_x < 0:
+            self.start_x = info['x']
+            info['start_x'] = self.start_x
         self.max_x = max(info['x'], self.max_x)
-
         info['max_x'] = self.max_x
+        self.sum_r += rew
+        info['sum_r'] = self.sum_r
 
         return obs, rew, done, info
