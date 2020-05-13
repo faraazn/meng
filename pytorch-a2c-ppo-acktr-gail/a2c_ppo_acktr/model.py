@@ -174,13 +174,29 @@ class CNNBase(NNBase):
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
                                constant_(x, 0), nn.init.calculate_gain('relu'))
 
+        """ My original model - 942,080 parameters
         # sonic shape 3, 224, 320
         self.main = nn.Sequential(
-            init_(nn.Conv2d(num_inputs, 32, 8, stride=4)), nn.ReLU(),
-            init_(nn.Conv2d(32, 64, 4, stride=4)), nn.ReLU(), # originally stride 2
-            init_(nn.Conv2d(64, 32, 3, stride=2)), nn.ReLU(), Flatten(), # originally stride 1
-            #init_(nn.Linear(32 * 7 * 7, hidden_size)), nn.ReLU())
-            init_(nn.Linear(1728, hidden_size)), nn.ReLU())
+            init_(nn.Conv2d(num_inputs, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
+            init_(nn.Conv2d(32, 64, 4, stride=4)), nn.ReLU(),  # [64, 13, 19]
+            init_(nn.Conv2d(64, 32, 3, stride=2)), nn.ReLU(), Flatten(),  # [32, 6, 9]
+            init_(nn.Linear(32*6*9, hidden_size)), nn.ReLU())
+        """
+        """ OpenAI Baselines small - 8,104,960 parameters
+        # sonic shape 3, 224, 320
+        self.main = nn.Sequential(
+            init_(nn.Conv2d(num_inputs, 16, 8, stride=4)), nn.ReLU(),  # [16, 55, 79]
+            init_(nn.Conv2d(16, 32, 4, stride=2)), nn.ReLU(),  # [32, 26, 38]
+            init_(nn.Linear(32*26*38, hidden_size)), nn.ReLU())
+        """
+        """ OpenAI Baselines large - 28,387,328 parameters"""
+        # sonic shape 3, 224, 320
+        self.main = nn.Sequential(
+            init_(nn.Conv2d(num_inputs, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
+            init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),  # [64, 26, 38]
+            init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(), Flatten(),  # [64, 24, 36]
+            init_(nn.Linear(64*24*36, hidden_size)), nn.ReLU())
+        
 
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
                                constant_(x, 0))

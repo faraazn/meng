@@ -44,8 +44,8 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             base_kwargs={'recurrent': args.recurrent_policy})
         env_step = 0
         episode_num = 0
-    actor_critic.to(device)
-    
+    actor_critic.to(device)   
+
     run_name = run_dir.replace('/', '_')
     vid_save_dir = f"{run_dir}/videos/"
     try:
@@ -141,7 +141,6 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         total_norm = total_norm ** (1. / 2)
         writer.add_scalar(f'grad_norm/{writer_name}', total_norm, env_step)
         prev_env_step = max(0, env_step + 1 - batch_size)
-        
         # print log to console
         if (env_step+1)//args.log_interval > prev_env_step//args.log_interval and len(episode_rewards) > 1:
             end = time.time()

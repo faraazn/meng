@@ -20,6 +20,7 @@ from train import train
 
 from torch.utils.tensorboard import SummaryWriter
 
+
 ALL_STATES = (
     'GreenHillZone.Act1',  'GreenHillZone.Act2',  'GreenHillZone.Act3',
     'MarbleZone.Act1',     'MarbleZone.Act2',     'MarbleZone.Act3',    
@@ -67,7 +68,7 @@ def main():
     torch.set_num_threads(1)
     random.seed(args.seed)
     np.random.seed(args.seed)
-    
+
     if args.cuda and torch.cuda.is_available() and args.cuda_deterministic:
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
@@ -76,16 +77,17 @@ def main():
     # format MM-DD_hh-mm-ss 
     run_name = str(datetime.now())[5:].replace(' ', '_').replace(':', '-').split('.')[0]
 
-    solo_env_steps = 5e6
-    eval_env_steps = 1e5
+    solo_env_steps = 1e6
+    eval_env_steps = 1e4
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo/")
     for env_state in ALL_STATES:
         print(f"[train] Starting {env_state} ppo training")
         init_model = get_newest_ckpt_path(os.path.join(f"{args.load}", f"ppo/{env_state}/ckpts/"))
         model, eval_score, _ = train(
             [env_state], f"runs/{run_name}/ppo/{env_state}", args, solo_env_steps, eval_env_steps, device, writer, env_state, init_model)
-        print(f"[train] {env_state} ppo score {eval_score}\n")
+        break
     writer.close()
+    return
 
     joint_env_steps = 3e7
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint/")
@@ -93,7 +95,6 @@ def main():
     init_model = get_newest_ckpt_path(os.path.join(f"{args.load}", "ppo-joint/ckpts/"))
     joint_model, eval_score, _ = train(
         TRAIN_STATES, f"runs/{run_name}/ppo-joint", args, joint_env_steps, eval_env_steps, device, writer, 'joint', init_model)
-    print(f"[train] ppo-joint score {eval_score}\n")
     writer.close()
 
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint-train/")
@@ -105,7 +106,6 @@ def main():
             init_model[1] = 0  # reset step to 0
         model, eval_score, _ = train(
             [env_state], f"runs/{run_name}/ppo-joint-train/{env_state}", args, solo_env_steps, eval_env_steps, device, writer, env_state, init_model)
-        print(f"[train] {env_state} ppo-joint-train score {eval_score}\n")
     writer.close()
 
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint-test/")
@@ -117,7 +117,6 @@ def main():
             init_model[1] = 0  # reset step to 0
         model, eval_score, _ = train(
             [env_state], f"runs/{run_name}/ppo-joint-test/{env_state}", args, solo_env_steps, eval_env_steps, device, writer, env_state, init_model)
-        print(f"[train] {env_state} ppo-joint-test score {eval_score}\n")
     writer.close()
 
 if __name__ == "__main__":
