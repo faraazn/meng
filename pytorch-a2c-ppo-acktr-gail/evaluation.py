@@ -14,6 +14,8 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
     MAX_VID_SAVE = 4500  # 5 min with frame skip 4
     assert eval_t > 0
 
+    actor_critic.eval()
+
     eval_dict = {'x': {}, '%': {}, 'r': {}}
     for env_state in env_states:
         start = time.time()
@@ -24,10 +26,10 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         if vid_save_dir:
             vid_width = 320
             vid_height = 224
-            fps = 60  # record at 4x speed with frame skip 4
+            fps = 15  # record at 1x speed with frame skip 4
             vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.mp4")
             vid_record = cv2.VideoWriter(
-                vid_filepath, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), fps, (vid_width, vid_height))
+                vid_filepath, cv2.VideoWriter_fourcc('V', 'P', '9', '0'), fps, (vid_width, vid_height))
 
         # TODO: specify evaluation mode during make envs so there's no reward scaler
         env = make_vec_envs(
@@ -69,9 +71,10 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
 
             if vid_save_dir and t < MAX_VID_SAVE:
                 vid_frame = obs[0].detach().cpu().numpy().astype(np.uint8)
+                vid_frame = vid_frame.transpose((1, 2, 0))[:,:,::-1]  # format for cv2 writing
                 vid_record.write(vid_frame)
                 
-            if done:
+            if done[0]:
                 r = ep_reward[0].detach().cpu().item()
                 eval_dict['r'][env_state].append(r)
                 ep_reward = 0
@@ -108,12 +111,12 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             writer.add_scalar(f'eval_episode_x/{env_state}', np.mean(eval_dict['x'][env_state]), step)
             writer.add_scalar(f'eval_episode_%/{env_state}', np.mean(eval_dict['%'][env_state]), step)
             writer.add_scalar(f'eval_episode_r/{env_state}', np.mean(eval_dict['r'][env_state]), step)
-            print(f"      wrote video to tensorboard: {time.time()-start}s")
+            print(f"    wrote video to tensorboard")
 
         if vid_save_dir:
             start = time.time()
             vid_record.release()
-            print(f"      wrote video to {vid_save_dir}: {time.time()-start}s")
+            print(f"    wrote video to {vid_save_dir}")
 
     # compute evaluation metric
     score = np.mean([np.mean(eval_dict['r'][env_state]) for env_state in env_states])

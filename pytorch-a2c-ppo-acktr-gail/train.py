@@ -45,6 +45,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         env_step = 0
         episode_num = 0
     actor_critic.to(device)   
+    actor_critic.train()
 
     run_name = run_dir.replace('/', '_')
     vid_save_dir = f"{run_dir}/videos/"
@@ -167,10 +168,12 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
 
             envs.close()
             del envs  # close does not actually get rid of envs, need to del
+            actor_critic.eval()
             eval_score, e_dict = evaluate(train_states, args.seed, device, actor_critic, 10000, env_step, writer, vid_save_dir)
             print(f"  [eval] Evaluation score: {eval_score}")
             writer.add_scalar('eval_score', eval_score, env_step)
 
+            actor_critic.train()
             envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, device, False, 'train')
             obs = envs.reset()
             rollouts.obs[0].copy_(obs)
