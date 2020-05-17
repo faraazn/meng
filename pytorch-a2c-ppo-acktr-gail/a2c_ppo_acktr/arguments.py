@@ -90,7 +90,7 @@ def get_args():
     parser.add_argument(
         '--save-interval',
         type=int,
-        default=3e6,
+        default=5e6,
         help='save interval, one save per n env steps (default: 10000)')
     parser.add_argument(
         '--eval-interval',
