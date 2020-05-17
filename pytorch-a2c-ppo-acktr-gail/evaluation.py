@@ -6,12 +6,12 @@ import os
 
 from a2c_ppo_acktr import utils
 from a2c_ppo_acktr.envs import make_vec_envs
-
+from visualize.visualize import gen_eval_vid_frame
 
 def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, vid_save_dir=None):
     # don't write videos that are too long
     MAX_WRITER = 450  # 30 sec with frame skip 4
-    MAX_VID_SAVE = 4500  # 5 min with frame skip 4
+    MAX_VID_SAVE = 1800  # 2 min with frame skip 4
     assert eval_t > 0
 
     actor_critic.eval()
@@ -24,8 +24,8 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         eval_dict['r'][env_state] = []
         
         if vid_save_dir:
-            vid_width = 320
-            vid_height = 224
+            vid_width = 320*3
+            vid_height = 224+50
             fps = 15  # record at 1x speed with frame skip 4
             vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.mp4")
             vid_record = cv2.VideoWriter(
@@ -51,10 +51,24 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         ep_reward = 0
         last_info = None
         screen_x_end = None
+        info = None
         while t < eval_t:
             with torch.no_grad():
                 value, action, _, recurrent_hidden_states = actor_critic.act(
                     obs, recurrent_hidden_states, masks, deterministic=True)
+                
+                if vid_save_dir and t < MAX_VID_SAVE:
+                    x = info[0]['x'] if info else 0
+                    max_x = info[0]['max_x'] if info else 0
+                    pct = info[0]['max_x']/info[0]['lvl_max_x']*100 if info else 0
+                    rew = info[0]['sum_r'] if info else 0
+                    a = action.item()
+                    tgt_layer = 5
+                    vid_frame = gen_eval_vid_frame(
+                        actor_critic, env_state, x, max_x, pct, rew, t, a, obs, tgt_layer)
+                    vid_frame = vid_frame[:,:,::-1]  # format for cv2 writing
+                    vid_record.write(vid_frame)
+
 
             # Obser reward and next obs
             obs, reward, done, info = env.step(action)
@@ -68,11 +82,6 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             if writer and t < MAX_WRITER:
                 vid_frame = obs[0].detach().cpu().numpy().astype(np.uint8)
                 vid_frames.append(np.expand_dims(vid_frame, axis=0))
-
-            if vid_save_dir and t < MAX_VID_SAVE:
-                vid_frame = obs[0].detach().cpu().numpy().astype(np.uint8)
-                vid_frame = vid_frame.transpose((1, 2, 0))[:,:,::-1]  # format for cv2 writing
-                vid_record.write(vid_frame)
                 
             if done[0]:
                 r = ep_reward[0].detach().cpu().item()
@@ -102,7 +111,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             start = time.time()
             vid_frames = np.expand_dims(np.concatenate(vid_frames), axis=0)
             #aud_frames = np.expand_dims(np.concatenate(aud_frames) / 2**15, axis=0)
-            writer.add_video(env_state, vid_frames, global_step=step, fps=60)
+            writer.add_video(env_state, vid_frames, global_step=step, fps=60)  # 4x speed w frameskip 4
             #print(f"  wrote video {time.time()-start}s")
             #start = time.time()
             #writer.add_audio('eval_ep_audio', aud_frames)

@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from misc_functions import get_example_params, save_class_activation_images
+from visualize.misc_functions import get_example_params, save_class_activation_images
 
 
 class CamExtractor():
