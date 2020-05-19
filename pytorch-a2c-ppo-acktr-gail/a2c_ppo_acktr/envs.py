@@ -12,14 +12,16 @@ from .vec_env.shmem_vec_env import ShmemVecEnv
 from .vec_env.vec_normalize import VecNormalize as VecNormalize_
 
 import retro
-from .wrappers import SonicJointEnv, TimeLimit, AllowBacktracking, SonicMaxXSumRInfo, SonicDiscretizer
-from .retro_wrappers import SonicDiscretizer, RewardScaler, StochasticFrameSkip
-
+from .wrappers import SonicJointEnv, TimeLimit, AllowBacktracking, SonicMaxXSumRInfo, EnvAudio, \
+                      SonicDiscretizer, RewardScaler, StochasticFrameSkip, AudioFeaturizer
+from .core_wrapper import ObservationWrapper
 
 
 def make_env(env_states, seed, rank, allow_early_resets, mode):
     def _thunk():
         env = SonicJointEnv(env_states)
+        env = EnvAudio(env)
+        env = AudioFeaturizer(env)
         env = SonicDiscretizer(env)
         env = AllowBacktracking(env)
         env = SonicMaxXSumRInfo(env)
@@ -74,15 +76,7 @@ class TimeLimitMask(gym.Wrapper):
         return self.env.reset(**kwargs)
 
 
-# Can be used to test recurrent policies for Reacher-v2
-class MaskGoal(gym.ObservationWrapper):
-    def observation(self, observation):
-        if self.env._elapsed_steps > 0:
-            observation[-2:] = 0
-        return observation
-
-
-class TransposeObs(gym.ObservationWrapper):
+class TransposeObs(ObservationWrapper):
     def __init__(self, env=None):
         """
         Transpose observation space (base class)
@@ -98,17 +92,17 @@ class TransposeImage(TransposeObs):
         super(TransposeImage, self).__init__(env)
         assert len(op) == 3, "Error: Operation, " + str(op) + ", must be dim3"
         self.op = op
-        obs_shape = self.observation_space.shape
-        self.observation_space = Box(
-            self.observation_space.low[0, 0, 0],
-            self.observation_space.high[0, 0, 0], [
-                obs_shape[self.op[0]], obs_shape[self.op[1]],
-                obs_shape[self.op[2]]
-            ],
-            dtype=self.observation_space.dtype)
+        # TODO: generalize to any 3 dim in obs dict?
+        im_obs_shape = self.observation_space[0].shape
+        self.observation_space = gym.spaces.Tuple((Box(
+            self.observation_space[0].low[0, 0, 0],
+            self.observation_space[0].high[0, 0, 0], [
+                im_obs_shape[self.op[0]], im_obs_shape[self.op[1]],
+                im_obs_shape[self.op[2]]
+            ], dtype=self.observation_space[0].dtype), self.observation_space[1]))
 
     def observation(self, ob):
-        return ob.transpose(self.op[0], self.op[1], self.op[2])
+        return {0: ob[0].transpose(self.op[0], self.op[1], self.op[2]), 1: ob[1]}
 
 
 class VecPyTorch(VecEnvWrapper):
@@ -120,7 +114,7 @@ class VecPyTorch(VecEnvWrapper):
 
     def reset(self):
         obs = self.venv.reset()
-        obs = torch.from_numpy(obs).float().to(self.device)
+        obs = {k: torch.from_numpy(obs[k]).float().to(self.device) for k in obs.keys()}
         return obs
 
     def step_async(self, actions):
@@ -132,7 +126,7 @@ class VecPyTorch(VecEnvWrapper):
 
     def step_wait(self):
         obs, reward, done, info = self.venv.step_wait()
-        obs = torch.from_numpy(obs).float().to(self.device)
+        obs = {k: torch.from_numpy(obs[k]).float().to(self.device) for k in obs.keys()}
         reward = torch.from_numpy(reward).unsqueeze(dim=1).float()
         return obs, reward, done, info
 

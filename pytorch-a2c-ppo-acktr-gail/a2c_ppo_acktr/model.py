@@ -13,20 +13,16 @@ class Flatten(nn.Module):
 
 
 class Policy(nn.Module):
-    def __init__(self, obs_shape, action_space, base=None, base_kwargs=None):
+    def __init__(self, obs_space, action_space, base=None, base_kwargs=None):
         super(Policy, self).__init__()
-        self.obs_shape = obs_shape
+        self.obs_space = obs_space
         if base_kwargs is None:
             base_kwargs = {}
         if base is None:
-            if len(obs_shape) == 3:
-                base = CNNBase
-            elif len(obs_shape) == 1:
-                base = MLPBase
-            else:
-                raise NotImplementedError
+            base = CNNBase
 
-        self.base = base(obs_shape[0], **base_kwargs)
+        # key 0 observation is input image
+        self.base = base(obs_space[0].shape[0], **base_kwargs)
 
         if action_space.__class__.__name__ == "Discrete":
             num_outputs = action_space.n
@@ -53,7 +49,8 @@ class Policy(nn.Module):
         raise NotImplementedError
 
     def act(self, inputs, rnn_hxs, masks, deterministic=False):
-        value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
+        # inputs is a dict, 0: vid_obs, 1: aud_obs
+        value, actor_features, rnn_hxs = self.base(inputs[0], rnn_hxs, masks)
         dist = self.dist(actor_features)
 
         if deterministic:
@@ -67,11 +64,13 @@ class Policy(nn.Module):
         return value, action, action_log_probs, rnn_hxs
 
     def get_value(self, inputs, rnn_hxs, masks):
-        value, _, _ = self.base(inputs, rnn_hxs, masks)
+        # inputs is a dict, 0: vid_obs, 1: aud_obs
+        value, _, _ = self.base(inputs[0], rnn_hxs, masks)
         return value
 
     def evaluate_actions(self, inputs, rnn_hxs, masks, action):
-        value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
+        # inputs is a dict, 0: vid_obs, 1: aud_obs
+        value, actor_features, rnn_hxs = self.base(inputs[0], rnn_hxs, masks)
         dist = self.dist(actor_features)
 
         action_log_probs = dist.log_probs(action)

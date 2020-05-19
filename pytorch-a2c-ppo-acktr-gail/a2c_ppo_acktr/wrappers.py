@@ -1,11 +1,11 @@
-from collections import deque
-import cv2
-cv2.ocl.setUseOpenCL(False)
 import numpy as np
 import gym
-from .core_wrapper import Wrapper, ActionWrapper, RewardWrapper
+from .core_wrapper import Wrapper, ActionWrapper, RewardWrapper, ObservationWrapper
 import retro
 import random
+import librosa
+import torch
+
 
 ZONE_ACT_2_LVL_MAX_X = {
     "GreenHillZone.Act1":  9568, "GreenHillZone.Act2":  8032,  "GreenHillZone.Act3":  10538,
@@ -36,7 +36,6 @@ class SonicJointEnv(gym.Env):
         
         env = retro.make(
             game='SonicTheHedgehog-Genesis', state=self.env_states[0])
-            #scenario='SonicTheHedgehog-Genesis/contest.json')
         self.action_space = env.action_space
         self.observation_space = env.observation_space
         env.close()
@@ -119,6 +118,7 @@ class SonicDiscretizer(ActionWrapper):
         self.action_space = gym.spaces.Discrete(len(self._actions))
 
     def action(self, a): # pylint: disable=W0221
+        a = a[0]  # TODO: is this a cuda thing?
         return self._actions[a].copy()
 
 
@@ -186,3 +186,88 @@ class SonicMaxXSumRInfo(Wrapper):
         info['sum_r'] = self.sum_r
 
         return obs, rew, done, info
+
+class StochasticFrameSkip(Wrapper):
+    def __init__(self, env, n, stickprob):
+        gym.Wrapper.__init__(self, env)
+        self.n = n
+        self.stickprob = stickprob
+        self.curac = None
+        self.rng = np.random.RandomState()
+        self.supports_want_render = hasattr(env, "supports_want_render")
+
+    def reset(self, **kwargs):
+        self.curac = None
+        return self.env.reset(**kwargs)
+
+    def step(self, ac):
+        done = False
+        totrew = 0
+        for i in range(self.n):
+            # First step after reset, use action
+            if self.curac is None:
+                self.curac = ac
+            # First substep, delay with probability=stickprob
+            elif i==0:
+                if self.rng.rand() > self.stickprob:
+                    self.curac = ac
+            # Second substep, new action definitely kicks in
+            elif i==1:
+                self.curac = ac
+            if self.supports_want_render and i<self.n-1:
+                ob, rew, done, info = self.env.step(self.curac, want_render=False)
+            else:
+                ob, rew, done, info = self.env.step(self.curac)
+            totrew += rew
+            if done: break
+        return ob, totrew, done, info
+
+    def seed(self, s):
+        self.rng.seed(s)
+
+class RewardScaler(RewardWrapper):
+    """
+    Bring rewards to a reasonable scale for PPO.
+    This is incredibly important and effects performance
+    drastically.
+    """
+    def __init__(self, env, scale=0.01):
+        super(RewardScaler, self).__init__(env)
+        self.scale = scale
+
+    def reward(self, reward):
+        return reward * self.scale
+
+class EnvAudio(ObservationWrapper):
+    """
+    Adds environment audio to observation, creating obs tuple (image, audio).
+    """
+    def __init__(self, env):
+        super(EnvAudio, self).__init__(env)
+        audio_obs_space = gym.spaces.Box(-1.0, 1.0, shape=(735,), dtype=np.float64)
+        self.observation_space = gym.spaces.Tuple((self.observation_space, audio_obs_space))
+
+    def observation(self, observation):
+        audio = self.em.get_audio()[:735,0] / 2**15
+        return {0: observation, 1: audio}
+
+class AudioFeaturizer(ObservationWrapper):
+    """
+    Processes audio observation to feature.
+    """
+    def __init__(self, env, feature_type='spectrogram'):
+        super(AudioFeaturizer, self).__init__(env)
+        self.feature_type = feature_type
+        audio_feature_obs_space = gym.spaces.Box(float('-inf'), 0.0, shape=(128,2), dtype=np.float32)
+        self.observation_space = gym.spaces.Tuple((self.observation_space[0], audio_feature_obs_space))
+
+    def observation(self, observation):
+        assert len(observation) == 2
+        audio = observation[1]
+        # the audio was playing at 60fps but now needs to be 15 fps?
+        #audio_feats = librosa.feature.mfcc(y=audio, sr=22050, n_mfcc=40)
+        mel_s = librosa.feature.melspectrogram(y=audio, sr=22050, hop_length=512)
+        audio_feats = librosa.power_to_db(mel_s, ref=np.max)
+        return {0: observation[0], 1: audio_feats}
+        
+

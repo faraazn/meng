@@ -39,7 +39,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         print(f"  [load] Loaded model {model_name} at step {env_step}")
     else:
         actor_critic = Policy(
-            envs.observation_space.shape,
+            envs.observation_space,
             envs.action_space,
             base_kwargs={'recurrent': args.recurrent_policy})
         env_step = 0
@@ -72,11 +72,13 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         assert False, f'Invalid algorithm provided.'
 
     rollouts = RolloutStorage(args.num_steps, args.num_processes,
-                              envs.observation_space.shape, envs.action_space,
+                              envs.observation_space, envs.action_space,
                               actor_critic.recurrent_hidden_state_size)
 
     obs = envs.reset()
-    rollouts.obs[0].copy_(obs)
+    for k in rollouts.obs.keys():
+        assert k in obs
+        rollouts.obs[k][0].copy_(obs[k][0])
     rollouts.to(device)
 
     episode_rewards = deque(maxlen=10)
@@ -96,8 +98,8 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             # Sample actions
             with torch.no_grad():
                 value, action, action_log_prob, recurrent_hidden_states = actor_critic.act(
-                    rollouts.obs[step], rollouts.recurrent_hidden_states[step],
-                    rollouts.masks[step])
+                    {k: rollouts.obs[k][step] for k in rollouts.obs.keys()},
+                    rollouts.recurrent_hidden_states[step], rollouts.masks[step])
 
             # Observe reward and next obs
             obs, reward, dones, infos = envs.step(action)
@@ -119,8 +121,8 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
                             action_log_prob, value, reward, masks, bad_masks)
         with torch.no_grad():
             next_value = actor_critic.get_value(
-                rollouts.obs[-1], rollouts.recurrent_hidden_states[-1],
-                rollouts.masks[-1]).detach()
+                {k: rollouts.obs[k][-1] for k in rollouts.obs.keys()},
+                rollouts.recurrent_hidden_states[-1], rollouts.masks[-1]).detach()
 
         rollouts.compute_returns(next_value, args.use_gae, args.gamma,
                                  args.gae_lambda, args.use_proper_time_limits)
@@ -176,7 +178,9 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             actor_critic.train()
             envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, device, False, 'train')
             obs = envs.reset()
-            rollouts.obs[0].copy_(obs)
+            # TODO: does this work? do we need to increment env step or something? why insert at 0
+            for k in rollouts.obs.keys():
+                rollouts.obs[k][0].copy_(obs[k][0])
 
     # final model save
     torch.save([
