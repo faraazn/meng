@@ -258,16 +258,15 @@ class AudioFeaturizer(ObservationWrapper):
     def __init__(self, env, feature_type='spectrogram'):
         super(AudioFeaturizer, self).__init__(env)
         self.feature_type = feature_type
-        audio_feature_obs_space = gym.spaces.Box(float('-inf'), 0.0, shape=(128,2), dtype=np.float32)
+        audio_feature_obs_space = gym.spaces.Box(-80.0, 0.0, shape=(128,2), dtype=np.float64)
         self.observation_space = gym.spaces.Tuple((self.observation_space[0], audio_feature_obs_space))
 
     def observation(self, observation):
         assert len(observation) == 2
         audio = observation[1]
         # the audio was playing at 60fps but now needs to be 15 fps?
-        #audio_feats = librosa.feature.mfcc(y=audio, sr=22050, n_mfcc=40)
-        mel_s = librosa.feature.melspectrogram(y=audio, sr=22050, hop_length=512)
-        audio_feats = librosa.power_to_db(mel_s, ref=np.max)
+        mel_s = librosa.feature.melspectrogram(y=audio, sr=22050, hop_length=735//2+1)
+        audio_feats = np.float64(librosa.power_to_db(mel_s, ref=np.max))
         return {0: observation[0], 1: audio_feats}
         
 

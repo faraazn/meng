@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchaudio.transforms import MelSpectrogram
 
 from a2c_ppo_acktr.distributions import Bernoulli, Categorical, DiagGaussian
 from a2c_ppo_acktr.utils import init
@@ -9,6 +10,8 @@ from a2c_ppo_acktr.utils import init
 
 class Flatten(nn.Module):
     def forward(self, x):
+        if not x.is_contiguous():
+            x = x.contiguous()
         return x.view(x.size(0), -1)
 
 
@@ -23,7 +26,7 @@ class Policy(nn.Module):
 
         # key 0 observation is input image
         self.base = base(obs_space[0].shape[0], **base_kwargs)
-
+        
         if action_space.__class__.__name__ == "Discrete":
             num_outputs = action_space.n
             self.dist = Categorical(self.base.output_size, num_outputs)
@@ -50,7 +53,7 @@ class Policy(nn.Module):
 
     def act(self, inputs, rnn_hxs, masks, deterministic=False):
         # inputs is a dict, 0: vid_obs, 1: aud_obs
-        value, actor_features, rnn_hxs = self.base(inputs[0], rnn_hxs, masks)
+        value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
         dist = self.dist(actor_features)
 
         if deterministic:
@@ -65,12 +68,12 @@ class Policy(nn.Module):
 
     def get_value(self, inputs, rnn_hxs, masks):
         # inputs is a dict, 0: vid_obs, 1: aud_obs
-        value, _, _ = self.base(inputs[0], rnn_hxs, masks)
+        value, _, _ = self.base(inputs, rnn_hxs, masks)
         return value
 
     def evaluate_actions(self, inputs, rnn_hxs, masks, action):
         # inputs is a dict, 0: vid_obs, 1: aud_obs
-        value, actor_features, rnn_hxs = self.base(inputs[0], rnn_hxs, masks)
+        value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
         dist = self.dist(actor_features)
 
         action_log_probs = dist.log_probs(action)
@@ -106,7 +109,7 @@ class NNBase(nn.Module):
 
     @property
     def output_size(self):
-        return self._hidden_size
+        return self._hidden_size + 256
 
     def _forward_gru(self, x, hxs, masks):
         if x.size(0) == hxs.size(0):
@@ -193,19 +196,24 @@ class CNNBase(NNBase):
         self.main = nn.Sequential(
             init_(nn.Conv2d(num_inputs, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
             init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),  # [64, 26, 38]
-            init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(), Flatten(),  # [64, 24, 36]
-            init_(nn.Linear(64*24*36, hidden_size)), nn.ReLU())
+            init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(),  # [64, 24, 36]
+            Flatten(), init_(nn.Linear(64*24*36, hidden_size)), nn.ReLU())  # [512]
         
-
+        self.aud_main = nn.Sequential(
+            Flatten(), init_(nn.Linear(128*2, 256)), nn.ReLU())  # [256]
+        
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
                                constant_(x, 0))
 
-        self.critic_linear = init_(nn.Linear(hidden_size, 1))
+        self.critic_linear = init_(nn.Linear(hidden_size + 256, 1))
 
         self.train()
 
     def forward(self, inputs, rnn_hxs, masks):
-        x = self.main(inputs / 255.0)
+        x = self.main(inputs[0] / 255.0)
+        mel_s = MelSpectrogram(sample_rate=22050, n_fft=512, hop_length=735//2+1).to("cuda:0")(inputs[1])
+        aud_x = self.aud_main(mel_s / 80.0)
+        x = torch.cat((x, aud_x), dim=1)
 
         if self.is_recurrent:
             assert False

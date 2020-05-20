@@ -21,7 +21,6 @@ def make_env(env_states, seed, rank, allow_early_resets, mode):
     def _thunk():
         env = SonicJointEnv(env_states)
         env = EnvAudio(env)
-        env = AudioFeaturizer(env)
         env = SonicDiscretizer(env)
         env = AllowBacktracking(env)
         env = SonicMaxXSumRInfo(env)
