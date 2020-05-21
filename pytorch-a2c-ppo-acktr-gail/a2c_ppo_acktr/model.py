@@ -63,10 +63,10 @@ class Policy(nn.Module):
         else:
             action = dist.sample()
 
-        action_log_probs = dist.log_probs(action)
-        dist_entropy = dist.entropy().mean()
+        action_log_prob = dist.log_probs(action)
+        #dist_entropy = dist.entropy().mean()
 
-        return value, action, action_log_probs, rnn_hxs
+        return value, action, action_log_prob, rnn_hxs, dist.logits
 
 
     def get_value(self, inputs, rnn_hxs, masks):

@@ -52,8 +52,6 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
     actor_critic.to(device) 
     actor_critic.train()
 
-    print(actor_critic)
-
     run_name = run_dir.replace('/', '_')
     vid_save_dir = f"{run_dir}/videos/"
     try:
@@ -103,7 +101,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         for step in range(args.num_steps):
             # Sample actions
             with torch.no_grad():
-                value, action, action_log_prob, recurrent_hidden_states = actor_critic.act(
+                value, action, action_log_prob, recurrent_hidden_states, _ = actor_critic.act(
                     {k: rollouts.obs[k][step] for k in rollouts.obs.keys()},
                     rollouts.recurrent_hidden_states[step], rollouts.masks[step])                
 

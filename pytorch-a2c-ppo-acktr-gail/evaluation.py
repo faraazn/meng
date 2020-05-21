@@ -27,7 +27,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             vid_width = 320*3
             vid_height = 224+50
             fps = 15  # record at 1x speed with frame skip 4
-            vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.mp4")
+            vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.vp9")
             vid_record = cv2.VideoWriter(
                 vid_filepath, cv2.VideoWriter_fourcc('V', 'P', '9', '0'), fps, (vid_width, vid_height))
 
@@ -54,7 +54,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         info = None
         while t < eval_t:
             with torch.no_grad():
-                value, action, _, recurrent_hidden_states = actor_critic.act(
+                value, action, log_probs, recurrent_hidden_states, logits = actor_critic.act(
                     obs, recurrent_hidden_states, masks, deterministic=True)
                 
                 if vid_save_dir and t < MAX_VID_SAVE:
@@ -63,9 +63,9 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                     pct = info[0]['max_x']/info[0]['lvl_max_x']*100 if info else 0
                     rew = info[0]['sum_r'] if info else 0
                     a = action.item()
-                    tgt_layer = 5
+                    tgt_layers = {'video': 5}
                     vid_frame = gen_eval_vid_frame(
-                        actor_critic, env_state, x, max_x, pct, rew, t, a, obs, tgt_layer)
+                        actor_critic, env_state, x, max_x, pct, rew, t, a, logits, obs, tgt_layers)
                     vid_frame = vid_frame[:,:,::-1]  # format for cv2 writing
                     vid_record.write(vid_frame)
 
@@ -75,12 +75,10 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             ep_reward += reward
             last_info = info
             
-            #aud_frame = env.envs[0].em.get_audio()[:,0]
-            #aud_frames.append(aud_frame)
             masks.fill_(0.0 if done else 1.0)
 
             if writer and t < MAX_WRITER:
-                vid_frame = obs[0].detach().cpu().numpy().astype(np.uint8)
+                vid_frame = obs['video'][0].detach().cpu().numpy().astype(np.uint8)
                 vid_frames.append(np.expand_dims(vid_frame, axis=0))
                 
             if done[0]:
