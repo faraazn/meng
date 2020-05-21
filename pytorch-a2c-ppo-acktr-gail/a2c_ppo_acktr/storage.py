@@ -9,9 +9,8 @@ def _flatten_helper(T, N, _tensor):
 class RolloutStorage(object):
     def __init__(self, num_steps, num_processes, obs_space, action_space,
                  recurrent_hidden_state_size):
-        assert type(obs_space) == gym.spaces.Tuple
         self.obs = {k: torch.zeros(num_steps + 1, num_processes, *obs_space[k].shape) \
-                    for k in range(len(obs_space))}
+                    for k in obs_space.spaces.keys()}
         self.recurrent_hidden_states = torch.zeros(
             num_steps + 1, num_processes, recurrent_hidden_state_size)
         self.rewards = torch.zeros(num_steps, num_processes, 1)

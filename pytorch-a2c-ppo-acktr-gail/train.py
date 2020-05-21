@@ -35,17 +35,24 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
                          args.gamma, device, False, 'train')
 
     if init_model:
-        actor_critic, env_step, episode_num, model_name = init_model
+        actor_critic, env_step, episode_num, model_name, obs_space, obs_module = init_model
+        assert obs_space == envs.observation_space, "Loaded observation space must match envs observation space."
         print(f"  [load] Loaded model {model_name} at step {env_step}")
     else:
+        obs_space = envs.observation_space
+        obs_module = {'video': 'video-large'}#, 'audio': 'audio-small'}
+        assert set(obs_space.spaces.keys()) == set(obs_module.keys()), "Observation spaces and modules must have same keys."
         actor_critic = Policy(
-            envs.observation_space,
+            obs_space,
+            obs_module,
             envs.action_space,
             base_kwargs={'recurrent': args.recurrent_policy})
         env_step = 0
         episode_num = 0
-    actor_critic.to(device)   
+    actor_critic.to(device) 
     actor_critic.train()
+
+    print(actor_critic)
 
     run_name = run_dir.replace('/', '_')
     vid_save_dir = f"{run_dir}/videos/"
@@ -77,7 +84,6 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
 
     obs = envs.reset()
     for k in rollouts.obs.keys():
-        assert k in obs
         rollouts.obs[k][0].copy_(obs[k][0])
     rollouts.to(device)
 
@@ -99,7 +105,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             with torch.no_grad():
                 value, action, action_log_prob, recurrent_hidden_states = actor_critic.act(
                     {k: rollouts.obs[k][step] for k in rollouts.obs.keys()},
-                    rollouts.recurrent_hidden_states[step], rollouts.masks[step])
+                    rollouts.recurrent_hidden_states[step], rollouts.masks[step])                
 
             # Observe reward and next obs
             obs, reward, dones, infos = envs.step(action)
@@ -123,6 +129,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             next_value = actor_critic.get_value(
                 {k: rollouts.obs[k][-1] for k in rollouts.obs.keys()},
                 rollouts.recurrent_hidden_states[-1], rollouts.masks[-1]).detach()
+
 
         rollouts.compute_returns(next_value, args.use_gae, args.gamma,
                                  args.gae_lambda, args.use_proper_time_limits)
@@ -164,7 +171,9 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
                 actor_critic,
                 env_step,
                 episode_num,
-                run_name
+                run_name,
+                obs_space,
+                obs_module
             ], os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt"))
             print(f"  [save] Saved model at step {env_step+1}.")
 
@@ -178,7 +187,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             actor_critic.train()
             envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, device, False, 'train')
             obs = envs.reset()
-            # TODO: does this work? do we need to increment env step or something? why insert at 0
+            # TODO: does this work? do we need to increment env step or something? whydden_states insert at 0
             for k in rollouts.obs.keys():
                 rollouts.obs[k][0].copy_(obs[k][0])
 
@@ -187,7 +196,9 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         actor_critic,
         env_step,
         episode_num,
-        run_name
+        run_name,
+        obs_space,
+        obs_module
     ], os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt"))
     print(f"  [save] Final model saved at step {env_step+1}.")
 

@@ -12,15 +12,15 @@ from .vec_env.shmem_vec_env import ShmemVecEnv
 from .vec_env.vec_normalize import VecNormalize as VecNormalize_
 
 import retro
-from .wrappers import SonicJointEnv, TimeLimit, AllowBacktracking, SonicMaxXSumRInfo, EnvAudio, \
-                      SonicDiscretizer, RewardScaler, StochasticFrameSkip, AudioFeaturizer
+from .wrappers import SonicJointEnv, TimeLimit, AllowBacktracking, SonicMaxXSumRInfo, \
+                      SonicDiscretizer, RewardScaler, StochasticFrameSkip, EnvAudio
 from .core_wrapper import ObservationWrapper
 
 
 def make_env(env_states, seed, rank, allow_early_resets, mode):
     def _thunk():
         env = SonicJointEnv(env_states)
-        env = EnvAudio(env)
+        #env = EnvAudio(env)
         env = SonicDiscretizer(env)
         env = AllowBacktracking(env)
         env = SonicMaxXSumRInfo(env)
@@ -92,16 +92,17 @@ class TransposeImage(TransposeObs):
         assert len(op) == 3, "Error: Operation, " + str(op) + ", must be dim3"
         self.op = op
         # TODO: generalize to any 3 dim in obs dict?
-        im_obs_shape = self.observation_space[0].shape
-        self.observation_space = gym.spaces.Tuple((Box(
-            self.observation_space[0].low[0, 0, 0],
-            self.observation_space[0].high[0, 0, 0], [
-                im_obs_shape[self.op[0]], im_obs_shape[self.op[1]],
-                im_obs_shape[self.op[2]]
-            ], dtype=self.observation_space[0].dtype), self.observation_space[1]))
+        vid_obs_shape = self.observation_space['video'].shape
+        self.observation_space.spaces['video'] = gym.spaces.Box(
+            self.observation_space['video'].low[0, 0, 0],
+            self.observation_space['video'].high[0, 0, 0], [
+                vid_obs_shape[self.op[0]], vid_obs_shape[self.op[1]],
+                vid_obs_shape[self.op[2]]
+            ], dtype=self.observation_space['video'].dtype)
 
     def observation(self, ob):
-        return {0: ob[0].transpose(self.op[0], self.op[1], self.op[2]), 1: ob[1]}
+        ob['video'] = ob['video'].transpose(self.op[0], self.op[1], self.op[2])
+        return ob
 
 
 class VecPyTorch(VecEnvWrapper):

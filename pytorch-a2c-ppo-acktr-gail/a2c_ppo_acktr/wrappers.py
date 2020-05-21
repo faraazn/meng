@@ -37,7 +37,9 @@ class SonicJointEnv(gym.Env):
         env = retro.make(
             game='SonicTheHedgehog-Genesis', state=self.env_states[0])
         self.action_space = env.action_space
-        self.observation_space = env.observation_space
+        self.observation_space = gym.spaces.Dict({
+            'video': env.observation_space
+        })
         env.close()
 
     def reset(self, **kwargs):
@@ -49,10 +51,13 @@ class SonicJointEnv(gym.Env):
         self.env = retro.make(
             game='SonicTheHedgehog-Genesis', state=env_state)
         self.em = self.env.em
-        return self.env.reset(**kwargs)
+
+        obs = {'video': self.env.reset(**kwargs)}
+        return obs
 
     def step(self, action):
         obs, rew, done, info = self.env.step(action)
+        obs = {'video': obs}
         info = info.copy()
         info['env_idx'] = self.env_idx
         env_state = self.env_states[self.env_idx]
@@ -245,28 +250,9 @@ class EnvAudio(ObservationWrapper):
     def __init__(self, env):
         super(EnvAudio, self).__init__(env)
         audio_obs_space = gym.spaces.Box(-1.0, 1.0, shape=(735,), dtype=np.float64)
-        self.observation_space = gym.spaces.Tuple((self.observation_space, audio_obs_space))
+        self.observation_space.spaces['audio'] = audio_obs_space
 
     def observation(self, observation):
         audio = self.em.get_audio()[:735,0] / 2**15
-        return {0: observation, 1: audio}
-
-class AudioFeaturizer(ObservationWrapper):
-    """
-    Processes audio observation to feature.
-    """
-    def __init__(self, env, feature_type='spectrogram'):
-        super(AudioFeaturizer, self).__init__(env)
-        self.feature_type = feature_type
-        audio_feature_obs_space = gym.spaces.Box(-80.0, 0.0, shape=(128,2), dtype=np.float64)
-        self.observation_space = gym.spaces.Tuple((self.observation_space[0], audio_feature_obs_space))
-
-    def observation(self, observation):
-        assert len(observation) == 2
-        audio = observation[1]
-        # the audio was playing at 60fps but now needs to be 15 fps?
-        mel_s = librosa.feature.melspectrogram(y=audio, sr=22050, hop_length=735//2+1)
-        audio_feats = np.float64(librosa.power_to_db(mel_s, ref=np.max))
-        return {0: observation[0], 1: audio_feats}
-        
-
+        observation['audio'] = audio
+        return observation

@@ -60,12 +60,12 @@ def get_args():
     parser.add_argument(
         '--num-processes',
         type=int,
-        default=32,
+        default=64,
         help='how many training CPU processes to use (default: 16)')
     parser.add_argument(
         '--num-steps',
         type=int,
-        default=16,
+        default=24,
         help='number of forward steps in A2C (default: 5)')
     parser.add_argument(
         '--ppo-epoch',
