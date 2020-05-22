@@ -14,6 +14,14 @@ class Flatten(nn.Module):
             x = x.contiguous()
         return x.view(x.size(0), -1)
 
+class Divide(nn.Module):
+    def __init__(self, divisor):
+        super(Divide, self).__init__()
+        self.divisor = divisor
+
+    def forward(self, x):
+        return x / self.divisor
+
 class Policy(nn.Module):
     def __init__(self, obs_space, obs_module, action_space, base_kwargs=None):
         super(Policy, self).__init__()
@@ -186,6 +194,7 @@ class NNBase2(NNBase):
                 # My original video model - 942,080 parameters
                 num_inputs = obs_space[obs_name].shape[0]  # should be 3, RGB
                 module = nn.Sequential(  # video shape [3, 224, 320]
+                    Divide(255.0),  # input range [0, 255] -> [0, 1]
                     nn.BatchNorm2d(num_inputs),
                     init_(nn.Conv2d(num_inputs, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
                     init_(nn.Conv2d(32, 64, 4, stride=4)), nn.ReLU(),  # [64, 13, 19]
@@ -196,6 +205,7 @@ class NNBase2(NNBase):
                 # OpenAI Baselines small - 8,104,960 parameters
                 num_inputs = obs_space[obs_name].shape[0]  # should be 3, RGB
                 module = nn.Sequential(  # video shape [3, 224, 320]
+                    Divide(255.0),  # input range [0, 255] -> [0, 1]
                     nn.BatchNorm2d(num_inputs),
                     init_(nn.Conv2d(num_inputs, 16, 8, stride=4)), nn.ReLU(),  # [16, 55, 79]
                     init_(nn.Conv2d(16, 32, 4, stride=2)), nn.ReLU(),  # [32, 26, 38]
@@ -205,20 +215,17 @@ class NNBase2(NNBase):
                 # OpenAI Baselines large - 28,387,328 parameters
                 num_inputs = obs_space[obs_name].shape[0]  # should be 3, RGB
                 module = nn.Sequential(  # video shape [3, 224, 320]
-                    #nn.BatchNorm2d(num_inputs),
+                    Divide(255.0),  # input range [0, 255] -> [0, 1]
                     init_(nn.Conv2d(num_inputs, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
-                    #nn.BatchNorm2d(32), nn.ReLU(),
                     init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),  # [64, 26, 38]
-                    #nn.BatchNorm2d(64), nn.ReLU(),
                     init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(),  # [64, 24, 36]
-                    #nn.BatchNorm2d(64), nn.ReLU(),
                     Flatten(), init_(nn.Linear(64*24*36, 512)), nn.ReLU())  # [512]
                 #self.output_size += 512
             elif obs_module[obs_name] == 'audio-small':
                 # My original audio model - 65,536 parameters
                 module = nn.Sequential(  # audio shape [735,]
                     MelSpectrogram(sample_rate=22050, n_fft=512, hop_length=735//2+1),  # [128, 2]
-                    Flatten(), nn.BatchNorm1d(256),  # [256]
+                    Divide(80.0), Flatten(),  # [256]
                     init_(nn.Linear(128*2, 256)), nn.ReLU())  # [256]
                 #self.output_size += 256
             else:

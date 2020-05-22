@@ -27,9 +27,9 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             vid_width = 320*3
             vid_height = 224+50
             fps = 15  # record at 1x speed with frame skip 4
-            vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.vp9")
+            vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.webm")
             vid_record = cv2.VideoWriter(
-                vid_filepath, cv2.VideoWriter_fourcc('V', 'P', '9', '0'), fps, (vid_width, vid_height))
+                vid_filepath, cv2.VideoWriter_fourcc('v', 'p', '9', '0'), fps, (vid_width, vid_height))
 
         # TODO: specify evaluation mode during make envs so there's no reward scaler
         env = make_vec_envs(

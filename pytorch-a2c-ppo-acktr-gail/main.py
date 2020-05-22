@@ -78,7 +78,7 @@ def main():
     run_name = str(datetime.now())[5:].replace(' ', '_').replace(':', '-').split('.')[0]
 
     solo_env_steps = 1e4
-    eval_env_steps = 1e3
+    eval_env_steps = 1e2
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo/")
     for env_state in ALL_STATES:
         print(f"[train] Starting {env_state} ppo training")

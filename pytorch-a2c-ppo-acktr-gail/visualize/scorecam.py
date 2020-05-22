@@ -23,29 +23,23 @@ class CamExtractor():
             Does a forward pass on convolutions, hooks the function at given layer
         """
         conv_outputs = {}
-        x = []
+        all_x = []
         for obs_name in obs.keys():
             if obs_name == 'video':
                 module = self.actor_critic.base.video_module
-                # TODO: make this nicer by including divide in module
-                vid_x = obs['video'] / 255
-                for m_pos, m in module._modules.items():
-                    vid_x = m(vid_x)
-                    if obs_name in self.obs_target.keys() and self.obs_target[obs_name] == int(m_pos):
-                        conv_outputs[obs_name] = vid_x
-                x.append(vid_x)
             elif obs_name == 'audio':
                 module = self.actor_critic.base.audio_module
-                aud_x = obs['audio']
-                for m_pos, m in module._modules.items():
-                    aud_x = m(aud_x)
-                    if obs_name in self.obs_target.keys() and self.obs_target[obs_name] == m_pos:
-                        conv_outputs[obs_name] = aud_x
-                x.append(aud_x)
             else:
                 raise NotImplementedError
-        x = torch.cat(x, dim=1)
-        return conv_outputs, x
+            
+            x = obs[obs_name]
+            for m_pos, m in module._modules.items():
+                x = m(x)
+                if obs_name in self.obs_target.keys() and self.obs_target[obs_name] == int(m_pos):
+                    conv_outputs[obs_name] = x
+            all_x.append(x)
+        all_x = torch.cat(all_x, dim=1)
+        return conv_outputs, all_x
 
     def forward_pass(self, x):
         """
