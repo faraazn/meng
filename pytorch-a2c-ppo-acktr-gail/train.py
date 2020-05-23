@@ -35,13 +35,14 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
                          args.gamma, device, False, 'train')
 
     if init_model:
-        actor_critic, env_step, episode_num, model_name, obs_space, obs_module = init_model
-        assert obs_space == envs.observation_space, "Loaded observation space must match envs observation space."
+        actor_critic, env_step, episode_num, model_name = init_model
+        obs_space = actor_critic.obs_space
+        obs_module - actor_critic.obs_module
         print(f"  [load] Loaded model {model_name} at step {env_step}")
     else:
         obs_space = envs.observation_space
         obs_module = {'video': 'video-large'}#, 'audio': 'audio-small'}
-        assert set(obs_space.spaces.keys()) == set(obs_module.keys()), "Observation spaces and modules must have same keys."
+        assert set(obs_module.keys()).issubset(set(obs_space.spaces.keys())), "Observation modules must be subset of spaces."
         actor_critic = Policy(
             obs_space,
             obs_module,
@@ -170,8 +171,6 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
                 env_step,
                 episode_num,
                 run_name,
-                obs_space,
-                obs_module
             ], os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt"))
             print(f"  [save] Saved model at step {env_step+1}.")
 
@@ -195,8 +194,6 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         env_step,
         episode_num,
         run_name,
-        obs_space,
-        obs_module
     ], os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt"))
     print(f"  [save] Final model saved at step {env_step+1}.")
 

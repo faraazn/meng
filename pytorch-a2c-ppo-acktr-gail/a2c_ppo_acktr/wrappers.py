@@ -249,10 +249,10 @@ class EnvAudio(ObservationWrapper):
     """
     def __init__(self, env):
         super(EnvAudio, self).__init__(env)
-        audio_obs_space = gym.spaces.Box(-1.0, 1.0, shape=(735,), dtype=np.float64)
+        audio_obs_space = gym.spaces.Box(-2**15, 2**15, shape=(735,), dtype=np.int16)
         self.observation_space.spaces['audio'] = audio_obs_space
 
     def observation(self, observation):
-        audio = self.em.get_audio()[:735,0] / 2**15
+        audio = self.em.get_audio()[:735,0]
         observation['audio'] = audio
         return observation

@@ -17,6 +17,7 @@ class CamExtractor():
     def __init__(self, actor_critic, obs_target):
         self.actor_critic = actor_critic
         self.obs_target = obs_target
+        self.obs_module = actor_critic.obs_module
 
     def forward_pass_on_convolutions(self, obs):
         """
@@ -24,7 +25,7 @@ class CamExtractor():
         """
         conv_outputs = {}
         all_x = []
-        for obs_name in obs.keys():
+        for obs_name in self.obs_module.keys():
             if obs_name == 'video':
                 module = self.actor_critic.base.video_module
             elif obs_name == 'audio':

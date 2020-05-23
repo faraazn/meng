@@ -2,7 +2,9 @@ import numpy as np
 import time
 import torch
 import cv2
+import wave
 import os
+import subprocess
 
 from a2c_ppo_acktr import utils
 from a2c_ppo_acktr.envs import make_vec_envs
@@ -23,15 +25,6 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         eval_dict['%'][env_state] = []
         eval_dict['r'][env_state] = []
         
-        if vid_save_dir:
-            vid_width = 320*3
-            vid_height = 224+50
-            fps = 15  # record at 1x speed with frame skip 4
-            vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.webm")
-            vid_record = cv2.VideoWriter(
-                vid_filepath, cv2.VideoWriter_fourcc('v', 'p', '9', '0'), fps, (vid_width, vid_height))
-
-        # TODO: specify evaluation mode during make envs so there's no reward scaler
         env = make_vec_envs(
             [env_state],
             seed + 1000,
@@ -40,13 +33,31 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             device=device,
             allow_early_resets=False,
             mode='eval')
-
+        obs = env.reset()
+        
+        if vid_save_dir:
+            vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.webm")
+            if 'audio' in obs.keys():
+                sr = 44100/4 #int(self.env.em.get_audio_rate())
+                aud_filepath = "/tmp/temp.wav"
+                aud_record = wave.open(aud_filepath,'w')
+                aud_record.setnchannels(1)  # mono
+                aud_record.setsampwidth(2)
+                aud_record.setframerate(sr)
+                # make vid file temporary if muxing with audio later
+                vid_filepath = "/tmp/temp.webm"
+            
+            # TODO: generate first eval frame here and set width and height
+            vid_width = 320*3
+            vid_height = 224+128+50
+            fps = 60/4  # record at 1x speed with frame skip 4
+            vid_record = cv2.VideoWriter(
+                vid_filepath, cv2.VideoWriter_fourcc(*'vp90'), fps, (vid_width, vid_height))
+                
         recurrent_hidden_states = torch.zeros(1, actor_critic.recurrent_hidden_state_size)
         masks = torch.zeros(1, 1)
 
         vid_frames = []
-        aud_frames = []
-        obs = env.reset()
         t = 0
         ep_reward = 0
         last_info = None
@@ -66,9 +77,14 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                     tgt_layers = {'video': 5}
                     vid_frame = gen_eval_vid_frame(
                         actor_critic, env_state, x, max_x, pct, rew, t, a, logits, obs, tgt_layers)
-                    vid_frame = vid_frame[:,:,::-1]  # format for cv2 writing
+                    assert vid_frame.shape[0] == vid_height and vid_frame.shape[1] == vid_width
+                    vid_frame = vid_frame[:,:,::-1]  # format 'BGR' for cv2 writing
                     vid_record.write(vid_frame)
 
+                    if 'audio' in obs.keys():
+                        # obs['audio'] shape [1, 735] and dtype float32??
+                        aud_frame = np.int16(obs['audio'].detach().cpu().numpy()[0])
+                        aud_record.writeframesraw(aud_frame)
 
             # Obser reward and next obs
             obs, reward, done, info = env.step(action)
@@ -108,13 +124,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         if writer:
             start = time.time()
             vid_frames = np.expand_dims(np.concatenate(vid_frames), axis=0)
-            #aud_frames = np.expand_dims(np.concatenate(aud_frames) / 2**15, axis=0)
             writer.add_video(env_state, vid_frames, global_step=step, fps=60)  # 4x speed w frameskip 4
-            #print(f"  wrote video {time.time()-start}s")
-            #start = time.time()
-            #writer.add_audio('eval_ep_audio', aud_frames)
-            #print(f"  wrote audio {time.time()-start}s")
-            #start = time.time()
             writer.add_scalar(f'eval_episode_x/{env_state}', np.mean(eval_dict['x'][env_state]), step)
             writer.add_scalar(f'eval_episode_%/{env_state}', np.mean(eval_dict['%'][env_state]), step)
             writer.add_scalar(f'eval_episode_r/{env_state}', np.mean(eval_dict['r'][env_state]), step)
@@ -123,7 +133,15 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         if vid_save_dir:
             start = time.time()
             vid_record.release()
-            print(f"    wrote video to {vid_save_dir}")
+
+            if 'audio' in obs.keys():
+                aud_record.close()
+                # combine the audio and video into a new file
+                final_vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}-aud.webm")
+                process = subprocess.check_call(
+                    ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', '-i', vid_filepath, '-i', aud_filepath, '-c:v', 'copy', '-c:a', 'libopus', final_vid_filepath])
+                vid_filepath = final_vid_filepath
+            print(f"    wrote video to {vid_filepath}")
 
     # compute evaluation metric
     score = np.mean([np.mean(eval_dict['r'][env_state]) for env_state in env_states])

@@ -12,6 +12,7 @@ from .util import dict_to_obs, obs_space_info, obs_to_dict
 
 _NP_TO_CT = {np.float32: ctypes.c_float,
              np.float64: ctypes.c_double,
+             np.int16: ctypes.c_int16,
              np.int32: ctypes.c_int32,
              np.int8: ctypes.c_int8,
              np.uint8: ctypes.c_char,

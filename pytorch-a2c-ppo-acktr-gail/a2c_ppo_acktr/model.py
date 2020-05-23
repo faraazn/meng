@@ -185,7 +185,9 @@ class NNBase2(NNBase):
     def __init__(self, obs_space, obs_module, recurrent=False, hidden_size=512):
         super(NNBase2, self).__init__(recurrent, hidden_size, hidden_size)
 
-        #self.output_size = 0
+        self.obs_space = obs_space
+        self.obs_module = obs_module
+        self._hidden_size = 0
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
                                constant_(x, 0), nn.init.calculate_gain('relu'))
 
@@ -200,7 +202,7 @@ class NNBase2(NNBase):
                     init_(nn.Conv2d(32, 64, 4, stride=4)), nn.ReLU(),  # [64, 13, 19]
                     init_(nn.Conv2d(64, 32, 3, stride=2)), nn.ReLU(), Flatten(),  # [32, 6, 9]
                     init_(nn.Linear(32*6*9, 512)), nn.ReLU())
-                #self.output_size += 512
+                self._hidden_size += 512
             elif obs_module[obs_name] == 'video-medium':
                 # OpenAI Baselines small - 8,104,960 parameters
                 num_inputs = obs_space[obs_name].shape[0]  # should be 3, RGB
@@ -210,7 +212,7 @@ class NNBase2(NNBase):
                     init_(nn.Conv2d(num_inputs, 16, 8, stride=4)), nn.ReLU(),  # [16, 55, 79]
                     init_(nn.Conv2d(16, 32, 4, stride=2)), nn.ReLU(),  # [32, 26, 38]
                     init_(nn.Linear(32*26*38, 512)), nn.ReLU())
-                #self.output_size += 512
+                self._hidden_size += 512
             elif obs_module[obs_name] == 'video-large':
                 # OpenAI Baselines large - 28,387,328 parameters
                 num_inputs = obs_space[obs_name].shape[0]  # should be 3, RGB
@@ -220,14 +222,14 @@ class NNBase2(NNBase):
                     init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),  # [64, 26, 38]
                     init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(),  # [64, 24, 36]
                     Flatten(), init_(nn.Linear(64*24*36, 512)), nn.ReLU())  # [512]
-                #self.output_size += 512
+                self._hidden_size += 512
             elif obs_module[obs_name] == 'audio-small':
                 # My original audio model - 65,536 parameters
                 module = nn.Sequential(  # audio shape [735,]
-                    MelSpectrogram(sample_rate=22050, n_fft=512, hop_length=735//2+1),  # [128, 2]
+                    MelSpectrogram(sample_rate=11025, n_fft=512, hop_length=735),  # [256, 1]
                     Divide(80.0), Flatten(),  # [256]
-                    init_(nn.Linear(128*2, 256)), nn.ReLU())  # [256]
-                #self.output_size += 256
+                    init_(nn.Linear(256, 256)), nn.ReLU())  # [256]
+                self._hidden_size += 256
             else:
                 raise NotImplementedError
             
@@ -242,9 +244,9 @@ class NNBase2(NNBase):
 
     def forward(self, obs, rnn_hxs, masks):
         x = []
-        for obs_name in sorted(obs.keys()):
+        for obs_name in sorted(self.obs_module.keys()):
             if obs_name == 'video':
-                x.append(self.video_module(obs[obs_name] / 255.0))
+                x.append(self.video_module(obs[obs_name]))
             elif obs_name == 'audio':
                 x.append(self.audio_module(obs[obs_name]))
             else:
