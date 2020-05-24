@@ -40,18 +40,21 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, l
     if 'audio' in obs.keys():
         # convert to short and back to float32, mel_s can't process short
         aud_frame = obs['audio'].short() / 2.0**15  # shape [1, 735]
-        mel_s = MelSpectrogram(sample_rate=44100/4, n_fft=512, win_length=256, hop_length=4).to("cuda:0")
+        mel_s = MelSpectrogram(sample_rate=44100/4, n_mels=512, n_fft=1024, win_length=256, hop_length=4).to("cuda:0")
         atodb = AmplitudeToDB(top_db=80).to("cuda:0")
-        obs_audio_mels = atodb(mel_s(aud_frame))[0].detach().cpu().numpy()  # shape [128, 735//hop_length+1]
-        obs_audio_mels = np.uint8(obs_audio_mels/80*255)  # scale to full uint8 range
-
-        aud_im = Image.fromarray(obs_audio_mels, 'L')
+        obs_audio_mels = mel_s(aud_frame)  # shape [512, 735//hop_length+1]
+        obs_audio_mels = atodb(obs_audio_mels)
+        obs_audio_mels = obs_audio_mels - obs_audio_mels.max()  # scale db to [0, -80.0]
+        obs_audio_mels = obs_audio_mels[0].detach().cpu().numpy()
+        obs_audio_mels = np.uint8(obs_audio_mels/80*255)  # scale to full uint8 image range
+        # perform vertical flip before passing to image
+        aud_im = Image.fromarray(np.flip(obs_audio_mels, axis=0), 'L')
         
-        new_cat_im = Image.new('RGB', (320*3, frame_y+128))
+        new_cat_im = Image.new('RGB', (320*3, frame_y+512))
         new_cat_im.paste(cat_im, (0,0))
         new_cat_im.paste(aud_im, (0,frame_y))
         cat_im = new_cat_im
-        frame_y += 128
+        frame_y += 512
 
     new_cat_im = Image.new('RGB', (320*3, frame_y+50))
     new_cat_im.paste(cat_im, (0,0))

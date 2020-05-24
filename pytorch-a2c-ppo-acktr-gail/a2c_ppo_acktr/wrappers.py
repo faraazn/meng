@@ -209,6 +209,8 @@ class StochasticFrameSkip(Wrapper):
     def step(self, ac):
         done = False
         totrew = 0
+        if self.aud_obs:
+            audio = []
         for i in range(self.n):
             # First step after reset, use action
             if self.curac is None:
@@ -225,7 +227,11 @@ class StochasticFrameSkip(Wrapper):
             else:
                 ob, rew, done, info = self.env.step(self.curac)
             totrew += rew
+            if self.aud_obs:
+                audio.append(ob['audio'])
             if done: break
+        if self.aud_obs:
+           ob['audio'] = np.concatenate(audio)[::4]  # shape [735]
         return ob, totrew, done, info
 
     def seed(self, s):
