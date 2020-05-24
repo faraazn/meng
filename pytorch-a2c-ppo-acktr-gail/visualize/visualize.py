@@ -5,7 +5,7 @@ import time
 from visualize.scorecam import CamExtractor, ScoreCam
 from visualize.misc_functions import apply_colormap_on_image
 
-from torchaudio.transforms import MelSpectrogram
+from torchaudio.transforms import MelSpectrogram, AmplitudeToDB
 
 from PIL import Image
 from PIL import ImageFont
@@ -38,12 +38,12 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, l
     frame_y += 224
 
     if 'audio' in obs.keys():
-        mel_s = MelSpectrogram(sample_rate=11025, n_fft=735*2-1, hop_length=4).to("cuda:0")
-        obs_audio_mels = mel_s(obs['audio'][0]).detach().cpu().numpy()#.mean(axis=1)  # shape [128]
-        #obs_audio_mels = np.interp(np.arange(0, 128, 128/320), np.arange(0,128), obs_audio_mels)  # shape [320]
-        #obs_audio_mels = np.expand_dims(80 - np.minimum(obs_audio_mels, 80), axis=1)  # shape [320, 1]
-        #indices = np.tile(np.arange(0, 80, 80/160), (320, 1))  # shape [320, 160]
-        #obs_audio_mels = np.uint8(indices < obs_audio_mels).transpose()  # shape [160, 320]
+        # convert to short and back to float32, mel_s can't process short
+        aud_frame = obs['audio'].short() / 2.0**15  # shape [1, 735]
+        mel_s = MelSpectrogram(sample_rate=44100/4, n_fft=512, win_length=256, hop_length=4).to("cuda:0")
+        atodb = AmplitudeToDB(top_db=80).to("cuda:0")
+        obs_audio_mels = atodb(mel_s(aud_frame))[0].detach().cpu().numpy()  # shape [128, 735//hop_length+1]
+        obs_audio_mels = np.uint8(obs_audio_mels/80*255)  # scale to full uint8 range
 
         aud_im = Image.fromarray(obs_audio_mels, 'L')
         

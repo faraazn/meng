@@ -137,7 +137,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             if 'audio' in obs.keys():
                 aud_record.close()
                 # combine the audio and video into a new file
-                final_vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}-aud.webm")
+                final_vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.webm")
                 process = subprocess.check_call(
                     ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', '-i', vid_filepath, '-i', aud_filepath, '-c:v', 'copy', '-c:a', 'libopus', final_vid_filepath])
                 vid_filepath = final_vid_filepath

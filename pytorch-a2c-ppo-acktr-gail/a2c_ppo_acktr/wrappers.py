@@ -200,6 +200,7 @@ class StochasticFrameSkip(Wrapper):
         self.curac = None
         self.rng = np.random.RandomState()
         self.supports_want_render = hasattr(env, "supports_want_render")
+        self.aud_obs = 'audio' in self.observation_space.spaces.keys()
 
     def reset(self, **kwargs):
         self.curac = None
