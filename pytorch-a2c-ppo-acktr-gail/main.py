@@ -77,16 +77,16 @@ def main():
     # format MM-DD_hh-mm-ss 
     run_name = str(datetime.now())[5:].replace(' ', '_').replace(':', '-').split('.')[0]
 
-    solo_env_steps = 0#1e4
-    eval_env_steps = 3e2
+    solo_env_steps = 1e6
+    eval_env_steps = 1e4
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo/")
     for env_state in ALL_STATES:
         print(f"[train] Starting {env_state} ppo training")
         init_model = get_newest_ckpt(os.path.join(f"{args.load}", f"ppo/{env_state}/ckpts/"))
         model, eval_score, _ = train(
             [env_state], f"runs/{run_name}/ppo/{env_state}", args, solo_env_steps, eval_env_steps, device, writer, env_state, init_model)
-        assert False
     writer.close()
+    assert False
 
     joint_env_steps = 1e5
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint/")

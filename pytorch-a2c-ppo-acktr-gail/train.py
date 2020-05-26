@@ -37,14 +37,17 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
     if init_model:
         actor_critic, env_step, episode_num, model_name = init_model
         obs_space = actor_critic.obs_space
-        obs_module - actor_critic.obs_module
+        obs_process = actor_critic.obs_process
+        obs_module = actor_critic.obs_module
         print(f"  [load] Loaded model {model_name} at step {env_step}")
     else:
         obs_space = envs.observation_space
-        obs_module = {'video': 'video-large'}#, 'audio': 'audio-small'}
+        obs_process = {'video': 'pix_norm', 'audio': 'mel_s'}
+        obs_module = {'video': 'video-large', 'audio': 'audio-small'}
         assert set(obs_module.keys()).issubset(set(obs_space.spaces.keys())), "Observation modules must be subset of spaces."
         actor_critic = Policy(
             obs_space,
+            obs_process,
             obs_module,
             envs.action_space,
             base_kwargs={'recurrent': args.recurrent_policy})
@@ -189,13 +192,14 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
                 rollouts.obs[k][0].copy_(obs[k][0])
 
     # final model save
+    final_model_path = os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt")
     torch.save([
         actor_critic,
         env_step,
         episode_num,
         run_name,
-    ], os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt"))
-    print(f"  [save] Final model saved at step {env_step+1}.")
+    ], final_model_path)
+    print(f"  [save] Final model saved at step {env_step+1} to {final_model_path}")
 
     # final model eval
     envs.close()

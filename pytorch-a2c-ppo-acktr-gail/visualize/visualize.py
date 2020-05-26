@@ -5,7 +5,7 @@ import time
 from visualize.scorecam import CamExtractor, ScoreCam
 from visualize.misc_functions import apply_colormap_on_image
 
-from torchaudio.transforms import MelSpectrogram, AmplitudeToDB
+from preprocess import ProcessMelSpectrogram
 
 from PIL import Image
 from PIL import ImageFont
@@ -21,7 +21,7 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, l
     frame_y = 0
 
     score_cam = ScoreCam(actor_critic, tgt_layers)
-    cams = score_cam.generate_cam(obs, action)
+    cams = score_cam.generate_cam(obs.copy(), action)
     cam = cams['video']
 
     obs_im_array = np.uint8(obs['video'][0].detach().cpu().numpy()).transpose((1,2,0))  # shape [224, 320, 3]
@@ -38,25 +38,26 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, l
     frame_y += 224
 
     if 'audio' in obs.keys():
-        # convert to short and back to float32, mel_s can't process short
-        aud_frame = obs['audio'].short() / 2.0**15  # shape [1, 735]
-        mel_s = MelSpectrogram(sample_rate=44100/4, n_mels=512, n_fft=1024, win_length=256, hop_length=4).to("cuda:0")
-        atodb = AmplitudeToDB(top_db=80).to("cuda:0")
-        obs_audio_mels = mel_s(aud_frame)  # shape [512, 735//hop_length+1]
-        obs_audio_mels = atodb(obs_audio_mels)
-        obs_audio_mels = obs_audio_mels - obs_audio_mels.max()  # scale db to [0, -80.0]
-        obs_audio_mels = obs_audio_mels[0].detach().cpu().numpy()
-        obs_audio_mels = np.uint8(obs_audio_mels/80*255)  # scale to full uint8 image range
+        obs_audio_mels = actor_critic.base.audio_process(obs['audio'])
+        obs_audio_mels = np.uint8(obs_audio_mels.detach().cpu().numpy()*255)  # scale to full uint8 image range
         # perform vertical flip before passing to image
-        aud_im = Image.fromarray(np.flip(obs_audio_mels, axis=0), 'L')
-        
-        new_cat_im = Image.new('RGB', (320*3, frame_y+512))
-        new_cat_im.paste(cat_im, (0,0))
-        new_cat_im.paste(aud_im, (0,frame_y))
-        cat_im = new_cat_im
-        frame_y += 512
+        aud_im = Image.fromarray(np.flip(obs_audio_mels[0][0], axis=0), 'L')
 
-    new_cat_im = Image.new('RGB', (320*3, frame_y+50))
+        cat_aud_im = Image.new('RGB', (320*3, 256))
+        cat_aud_im.paste(aud_im, (0,0))
+
+        hm, hm_on_im = apply_colormap_on_image(aud_im, cams['audio'], 'hsv')
+        hm = ImageEnhance.Brightness(hm).enhance(0.75)
+        cat_aud_im.paste(hm_on_im, (320,0))
+        cat_aud_im.paste(hm, (640,0))
+
+        new_cat_im = Image.new('RGB', (320*3, frame_y+256))
+        new_cat_im.paste(cat_im, (0,0))
+        new_cat_im.paste(cat_aud_im, (0,frame_y))
+        cat_im = new_cat_im
+        frame_y += 256
+
+    new_cat_im = Image.new('RGB', (320*3, frame_y+100))
     new_cat_im.paste(cat_im, (0,0))
     cat_im = new_cat_im
 

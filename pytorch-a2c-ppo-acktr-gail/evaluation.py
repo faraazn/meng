@@ -74,7 +74,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                     pct = info[0]['max_x']/info[0]['lvl_max_x']*100 if info else 0
                     rew = info[0]['sum_r'] if info else 0
                     a = action.item()
-                    tgt_layers = {'video': 5}
+                    tgt_layers = {'video': 5, 'audio': 5}
                     vid_frame = gen_eval_vid_frame(
                         actor_critic, env_state, x, max_x, pct, rew, t, a, logits, obs, tgt_layers)
                     assert vid_frame.shape[0] == vid_height and vid_frame.shape[1] == vid_width

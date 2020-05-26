@@ -1,14 +1,10 @@
-"""
-Created on Wed Apr 29 16:11:20 2020
-@author: Haofan Wang - github.com/haofanwang
-"""
 from PIL import Image
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 from visualize.misc_functions import get_example_params, save_class_activation_images
-
+from preprocess import ProcessMelSpectrogram
 
 class CamExtractor():
     """
@@ -32,7 +28,7 @@ class CamExtractor():
                 module = self.actor_critic.base.audio_module
             else:
                 raise NotImplementedError
-            
+           
             x = obs[obs_name]
             for m_pos, m in module._modules.items():
                 x = m(x)
@@ -66,6 +62,12 @@ class ScoreCam():
         # Full forward pass
         # conv_output is the output of convolutions at specified layer
         # model_output is the final output of the model (1, 1000)
+        for obs_name in obs.keys():
+            if obs_name == 'video':
+                p_process = self.actor_critic.base.video_process
+            if obs_name == 'audio':
+                p_process = self.actor_critic.base.audio_process
+            obs[obs_name] = p_process(obs[obs_name])
         conv_outputs, model_output = self.extractor.forward_pass(obs)
         cams = {}
         for obs_name in conv_outputs.keys():
@@ -73,12 +75,18 @@ class ScoreCam():
             target = conv_outputs[obs_name][0]
             # Create empty numpy array for cam
             cam = np.ones(target.shape[1:], dtype=np.float32)
+            if obs_name == 'video':
+                size = (224, 320)
+            elif obs_name == 'audio':
+                size = (256, 92)
+            else:
+                raise NotImplementedError
             # Multiply each weight with its conv output and then, sum
             for i in range(len(target)):
                 # Unsqueeze to 4D
                 saliency_map = torch.unsqueeze(torch.unsqueeze(target[i, :, :],0),0)
                 # Upsampling to input size
-                saliency_map = F.interpolate(saliency_map, size=(224, 320), mode='bilinear', align_corners=False)
+                saliency_map = F.interpolate(saliency_map, size=size, mode='bilinear', align_corners=False)
                 if saliency_map.max() == saliency_map.min():
                     continue
                 # Scale between 0-1
@@ -92,6 +100,6 @@ class ScoreCam():
             cam = np.maximum(cam, 0)
             cam = (cam - np.min(cam)) / (np.max(cam) - np.min(cam))  # Normalize between 0-1
             cam = np.uint8(cam * 255)  # Scale between 0-255 to visualize
-            cam = np.uint8(Image.fromarray(cam).resize((320, 224), Image.ANTIALIAS))/255
+            cam = np.uint8(Image.fromarray(cam).resize((size[1], size[0]), Image.ANTIALIAS))/255
             cams[obs_name] = cam
         return cams
