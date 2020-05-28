@@ -15,7 +15,7 @@ class CamExtractor():
         self.obs_target = obs_target
         self.obs_module = actor_critic.obs_module
 
-    def forward_pass_on_convolutions(self, obs):
+    def forward_pass_on_convolutions(self, processed_obs):
         """
             Does a forward pass on convolutions, hooks the function at given layer
         """
@@ -29,7 +29,7 @@ class CamExtractor():
             else:
                 raise NotImplementedError
            
-            x = obs[obs_name]
+            x = processed_obs[obs_name]
             for m_pos, m in module._modules.items():
                 x = m(x)
                 if obs_name in self.obs_target.keys() and self.obs_target[obs_name] == int(m_pos):
@@ -58,29 +58,18 @@ class ScoreCam():
         # Define extractor
         self.extractor = CamExtractor(self.actor_critic, tgt_layers)
 
-    def generate_cam(self, obs, target_class):
+    def generate_cam(self, processed_obs, target_class):
         # Full forward pass
         # conv_output is the output of convolutions at specified layer
         # model_output is the final output of the model (1, 1000)
-        for obs_name in obs.keys():
-            if obs_name == 'video':
-                p_process = self.actor_critic.base.video_process
-            if obs_name == 'audio':
-                p_process = self.actor_critic.base.audio_process
-            obs[obs_name] = p_process(obs[obs_name])
-        conv_outputs, model_output = self.extractor.forward_pass(obs)
+        conv_outputs, model_output = self.extractor.forward_pass(processed_obs)
         cams = {}
         for obs_name in conv_outputs.keys():
             # Get convolution outputs
             target = conv_outputs[obs_name][0]
             # Create empty numpy array for cam
             cam = np.ones(target.shape[1:], dtype=np.float32)
-            if obs_name == 'video':
-                size = (224, 320)
-            elif obs_name == 'audio':
-                size = (256, 92)
-            else:
-                raise NotImplementedError
+            size = processed_obs[obs_name].shape[-2:]
             # Multiply each weight with its conv output and then, sum
             for i in range(len(target)):
                 # Unsqueeze to 4D
@@ -92,8 +81,8 @@ class ScoreCam():
                 # Scale between 0-1
                 norm_saliency_map = (saliency_map - saliency_map.min()) / (saliency_map.max() - saliency_map.min())
                 # Get the target score
-                new_obs = obs.copy()
-                new_obs[obs_name] = obs[obs_name]*norm_saliency_map
+                new_obs = processed_obs.copy()
+                new_obs[obs_name] = processed_obs[obs_name]*norm_saliency_map
                 w = self.extractor.forward_pass(new_obs)[1]
                 w = w.probs[0][target_class]
                 cam += w.cpu().data.numpy() * target[i, :, :].cpu().data.numpy()
