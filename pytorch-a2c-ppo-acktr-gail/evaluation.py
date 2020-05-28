@@ -49,7 +49,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             
             # TODO: generate first eval frame here and set width and height
             vid_width = 320*3
-            vid_height = 224+512+50
+            vid_height = 224+256+100
             fps = 60/4  # record at 1x speed with frame skip 4
             vid_record = cv2.VideoWriter(
                 vid_filepath, cv2.VideoWriter_fourcc(*'vp90'), fps, (vid_width, vid_height))
@@ -119,7 +119,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             eval_dict['x'][env_state].append(last_info[0]['max_x'])
             eval_dict['%'][env_state].append(last_info[0]['max_x']/info[0]['lvl_max_x'] * 100)
 
-        print(f"    generated eval data for {env_state}: {time.time()-start}s")
+        print(f"    generated eval data for {env_state}: {time.time()-start:.1f}s")
 
         if writer:
             start = time.time()

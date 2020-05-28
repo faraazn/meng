@@ -59,8 +59,10 @@ class Policy(nn.Module):
         """Size of rnn_hx."""
         return self.base.recurrent_hidden_state_size
 
-    def forward(self, inputs, rnn_hxs, masks):
-        raise NotImplementedError
+    def forward(self, inputs, rnn_hxs=None, masks=None):
+        # this forward fn is only used for tracing!
+        result =  self.act(inputs, rnn_hxs, masks)
+        return result[0], result[1], result[2], result[4]
 
     def act(self, obs, rnn_hxs, masks, deterministic=False):
         actor_features, rnn_hxs = self.base(obs, rnn_hxs, masks)
@@ -73,7 +75,6 @@ class Policy(nn.Module):
             action = dist.sample()
 
         action_log_prob = dist.log_probs(action)
-        #dist_entropy = dist.entropy().mean()
 
         return value, action, action_log_prob, rnn_hxs, dist.logits
 

@@ -6,6 +6,10 @@ import random
 import glob
 from datetime import datetime
 from collections import deque
+import psutil
+import nvidia_smi
+nvidia_smi.nvmlInit()
+handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
 
 import gym
 import numpy as np
@@ -54,7 +58,6 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         env_step = 0
         episode_num = 0
     actor_critic.to(device) 
-    actor_critic.train()
 
     run_name = run_dir.replace('/', '_')
     vid_save_dir = f"{run_dir}/videos/"
@@ -85,6 +88,9 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
                               actor_critic.recurrent_hidden_state_size)
 
     obs = envs.reset()
+    actor_critic.eval()
+    writer.add_graph(actor_critic, obs)
+    actor_critic.train()
     for k in rollouts.obs.keys():
         rollouts.obs[k][0].copy_(obs[k][0])
     rollouts.to(device)
@@ -140,18 +146,37 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
 
         env_step += batch_size
         
-        # write training metrics for each batch
+        # write training metrics for each batch, usually takes 0.003s
         fps = batch_size / (time.time()-s)
         writer.add_scalar(f'fps/{writer_name}', fps, env_step)
         writer.add_scalar(f'value_loss/{writer_name}', value_loss / batch_size, env_step)
         writer.add_scalar(f'action_loss/{writer_name}', action_loss / batch_size, env_step)
         writer.add_scalar(f'dist_entropy/{writer_name}', dist_entropy / batch_size, env_step)
+        writer.add_scalar(f'cpu_usage/{writer_name}', psutil.cpu_percent(), env_step)
+        writer.add_scalar(f'cpu_mem/{writer_name}', psutil.virtual_memory()._asdict()['percent'], env_step)
+        res = nvidia_smi.nvmlDeviceGetUtilizationRates(handle)
+        writer.add_scalar(f'gpu_usage/{writer_name}', res.gpu, env_step)
+        writer.add_scalar(f'gpu_mem/{writer_name}', res.memory, env_step)
         total_norm = 0
         for p in list(filter(lambda p: p.grad is not None, actor_critic.parameters())):
             param_norm = p.grad.data.norm(2)
             total_norm += param_norm.item() ** 2
         total_norm = total_norm ** (1. / 2)
         writer.add_scalar(f'grad_norm/{writer_name}', total_norm, env_step)
+        for obs_name in obs_module.keys():
+            total_norm = 0
+            if obs_name == 'video':
+                md = actor_critic.base.video_module
+            elif obs_name == 'audio':
+                md = actor_critic.base.audio_module
+            else:
+                raise NotImplementedError
+            for p in list(filter(lambda p: p.grad is not None, md.parameters())):
+                param_norm = p.grad.data.norm(2)
+                total_norm += param_norm.item() ** 2
+            total_norm = total_norm ** (1. / 2)
+            writer.add_scalar(f'grad_norm_{obs_name}/{writer_name}', total_norm, env_step)
+        
         prev_env_step = max(0, env_step + 1 - batch_size)
         # print log to console
         if (env_step+1)//args.log_interval > prev_env_step//args.log_interval and len(episode_rewards) > 1:
