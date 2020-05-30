@@ -8,7 +8,7 @@ import subprocess
 
 from a2c_ppo_acktr import utils
 from a2c_ppo_acktr.envs import make_vec_envs
-from visualize.visualize import gen_eval_vid_frame
+from visualize.visualize import gen_eval_vid_frame, gen_eval_vid_frame_small
 
 def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, vid_save_dir=None):
     # don't write videos that are too long
@@ -38,7 +38,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         if vid_save_dir:
             vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.webm")
             if 'audio' in obs.keys():
-                sr = 44100/4 #int(self.env.em.get_audio_rate())
+                sr = 44100 #int(self.env.em.get_audio_rate())
                 aud_filepath = "/tmp/temp.wav"
                 aud_record = wave.open(aud_filepath,'w')
                 aud_record.setnchannels(1)  # mono
@@ -47,9 +47,10 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                 # make vid file temporary if muxing with audio later
                 vid_filepath = "/tmp/temp.webm"
             
-            # TODO: generate first eval frame here and set width and height
-            vid_width = 320*3
-            vid_height = 224+256+100
+            vid_frame = gen_eval_vid_frame(
+                actor_critic, env_state, 0, 0, 0, 0, 0, 0, None, obs, {'video': 5, 'audio': 5})
+            vid_height = vid_frame.shape[0]
+            vid_width = vid_frame.shape[1]
             fps = 60/4  # record at 1x speed with frame skip 4
             vid_record = cv2.VideoWriter(
                 vid_filepath, cv2.VideoWriter_fourcc(*'vp90'), fps, (vid_width, vid_height))
@@ -83,7 +84,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
 
                     if 'audio' in obs.keys():
                         # obs['audio'] shape [1, 735] and dtype float32??
-                        aud_frame = np.int16(obs['audio'].detach().cpu().numpy()[0])
+                        aud_frame = np.int16(obs['audio'].detach().cpu().numpy()[0]*2**15)
                         aud_record.writeframesraw(aud_frame)
 
             # Obser reward and next obs
@@ -94,7 +95,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             masks.fill_(0.0 if done else 1.0)
 
             if writer and t < MAX_WRITER:
-                vid_frame = obs['video'][0].detach().cpu().numpy().astype(np.uint8)
+                vid_frame = gen_eval_vid_frame_small(actor_critic, obs)
                 vid_frames.append(np.expand_dims(vid_frame, axis=0))
                 
             if done[0]:
@@ -139,7 +140,8 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                 # combine the audio and video into a new file
                 final_vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.webm")
                 process = subprocess.check_call(
-                    ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', '-i', vid_filepath, '-i', aud_filepath, '-c:v', 'copy', '-c:a', 'libopus', final_vid_filepath])
+                    ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', '-i', vid_filepath,
+                     '-i', aud_filepath, '-c:v', 'copy', '-c:a', 'libopus', final_vid_filepath])
                 vid_filepath = final_vid_filepath
             print(f"    wrote video to {vid_filepath}")
 

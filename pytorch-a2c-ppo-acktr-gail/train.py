@@ -117,6 +117,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
 
             # Observe reward and next obs
             obs, reward, dones, infos = envs.step(action)
+            
             for done, info in zip(dones, infos):
                 env_state = info['env_state']
                 if done:

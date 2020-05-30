@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from preprocess import ProcessMelSpectrogram
+from preprocess import ProcessMelSpectrogram, ProcessRGBVideo
 
 from a2c_ppo_acktr.distributions import Bernoulli, Categorical, DiagGaussian
 from a2c_ppo_acktr.utils import init
@@ -200,33 +200,30 @@ class NNBase2(NNBase):
             if obs_process[obs_name] == 'mel_s':
                 p_process = ProcessMelSpectrogram()  # range [0, 1], shape [b, 1, 256, 92]
             elif obs_process[obs_name] == 'pix_norm':
-                p_process = Divide(255)
+                p_process = ProcessRGBVideo()
             else:
                 raise NotImplementedError
             
             # determine module
             if obs_module[obs_name] == 'video-small':
                 # My original video model - 942,080 parameters
-                num_inputs = obs_space[obs_name].shape[0]  # should be 3, RGB
                 module = nn.Sequential(  # video shape [3, 224, 320]
-                    init_(nn.Conv2d(num_inputs, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
+                    init_(nn.Conv2d(3, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
                     init_(nn.Conv2d(32, 64, 4, stride=4)), nn.ReLU(),  # [64, 13, 19]
                     init_(nn.Conv2d(64, 32, 3, stride=2)), nn.ReLU(), Flatten(),  # [32, 6, 9]
                     init_(nn.Linear(32*6*9, 512)), nn.ReLU())
                 self._hidden_size += 512
             elif obs_module[obs_name] == 'video-medium':
                 # OpenAI Baselines small - 8,104,960 parameters
-                num_inputs = obs_space[obs_name].shape[0]  # should be 3, RGB
                 module = nn.Sequential(  # video shape [3, 224, 320]
-                    init_(nn.Conv2d(num_inputs, 16, 8, stride=4)), nn.ReLU(),  # [16, 55, 79]
+                    init_(nn.Conv2d(3, 16, 8, stride=4)), nn.ReLU(),  # [16, 55, 79]
                     init_(nn.Conv2d(16, 32, 4, stride=2)), nn.ReLU(),  # [32, 26, 38]
                     init_(nn.Linear(32*26*38, 512)), nn.ReLU())
                 self._hidden_size += 512
             elif obs_module[obs_name] == 'video-large':
                 # OpenAI Baselines large - 28,387,328 parameters
-                num_inputs = obs_space[obs_name].shape[0]  # should be 3, RGB
                 module = nn.Sequential(  # video shape [3, 224, 320]
-                    init_(nn.Conv2d(num_inputs, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
+                    init_(nn.Conv2d(3, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
                     init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),  # [64, 26, 38]
                     init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(),  # [64, 24, 36]
                     Flatten(), init_(nn.Linear(64*24*36, 512)), nn.ReLU())  # [512]

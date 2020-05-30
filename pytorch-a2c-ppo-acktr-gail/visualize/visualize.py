@@ -15,9 +15,15 @@ from PIL import ImageEnhance
 ACTIONS = ('L ', 'R ', 'LD', 'RD', 'D ', 'DB', 'B ')
 
 
+def gen_eval_vid_frame_small(actor_critic, obs):
+    actor_critic.eval()
+    vid_process = actor_critic.base.video_process(obs['video'])[0]
+    vid_process = np.uint8(vid_process.detach().cpu().numpy()*255)
+    return vid_process
+
+
 def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, logits, obs, tgt_layers):
     actor_critic.eval()
-    s = time.time()    
     processed_obs = obs.copy()
     for obs_name in sorted(obs.keys()):
         if obs_name == 'video':
@@ -26,22 +32,15 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, l
             processed_obs[obs_name] = actor_critic.base.audio_process(obs[obs_name])
         else:
             raise NotImplementedError
-    print(f"process obs {time.time()-s}s")
-    s = time.time()
     score_cam = ScoreCam(actor_critic, tgt_layers)
-    print(f"score cam init {time.time()-s}s ")
-    s = time.time()
     cams = score_cam.generate_cam(processed_obs, action)
-    print(f"score cam gen {time.time()-s}s ")
-    s = time.time()
-
 
     frame_x = 320*3  # this needs to be known max length along x axis to align heatmap etc
     frame_y = 100  # this increases with each obs since we append along y axis
 
     # generate frame info
     cat_im = Image.new('RGB', (frame_x, frame_y))
-    logits = logits.detach().cpu().numpy()[0]
+    logits = logits.detach().cpu().numpy()[0] if logits is not None else []
     logits_txt = '['+', '.join([f"{logit:.3f}" for logit in logits])[:-1]+']'
     draw = ImageDraw.Draw(cat_im)
     draw.text(
@@ -50,8 +49,6 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, l
             x: {x:07.2f} | max_x: {max_x:07.2f} | pct: {pct:05.2f}% | rew: {rew:07.2f}
             action: {ACTIONS[action]} | logits: {logits_txt}""",
         (255,255,255))
-    print(f"gen frame info {time.time()-s}s ")
-    s = time.time()
 
     for obs_name in sorted(obs.keys()):
         obs_im_array = np.uint8(processed_obs[obs_name][0].detach().cpu().numpy()*255).transpose((1,2,0))
@@ -65,8 +62,6 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, l
         
         hm, hm_on_im = apply_colormap_on_image(obs_im, cams[obs_name], 'hsv')
         hm = ImageEnhance.Brightness(hm).enhance(0.75)  # heatmap is usually too bright
-        print(f"apply colormap {obs_name} {time.time()-s}s ")
-        s = time.time()
 
         # add to previous image
         new_frame_y = frame_y + obs_im.size[1]
@@ -77,7 +72,5 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, l
         new_cat_im.paste(hm, (frame_x//3*2,frame_y))
         frame_y = new_frame_y
         cat_im = new_cat_im
-        print(f"cat image {obs_name} {time.time()-s}s ")
-        s = time.time()
 
     return np.uint8(cat_im)

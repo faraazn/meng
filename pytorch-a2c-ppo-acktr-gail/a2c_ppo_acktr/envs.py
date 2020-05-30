@@ -13,7 +13,7 @@ from .vec_env.vec_normalize import VecNormalize as VecNormalize_
 
 import retro
 from .wrappers import SonicJointEnv, TimeLimit, AllowBacktracking, SonicMaxXSumRInfo, \
-                      SonicDiscretizer, RewardScaler, StochasticFrameSkip, EnvAudio
+                      SonicDiscretizer, RewardScaler, StochasticFrameSkip, EnvAudio, ObsMemoryBuffer
 from .core_wrapper import ObservationWrapper
 
 
@@ -26,14 +26,11 @@ def make_env(env_states, seed, rank, allow_early_resets, mode):
         env = SonicMaxXSumRInfo(env)
         if mode == 'train':
             env = RewardScaler(env, scale=0.005)
-        env = StochasticFrameSkip(env, 4, 0.25)
+        env = StochasticFrameSkip(env, 4, 0.25, {'video': False, 'audio': True})
+        #env = ObsMemoryBuffer(env, {'video': 1, 'audio': 1})
         env = TimeLimit(env, max_episode_steps=4500)
 
         env.seed(seed + rank)
-
-        # wrap for PyTorch convolutions
-        env = TransposeImage(env, op=[2, 0, 1])
-
         return env
 
     return _thunk
@@ -73,36 +70,6 @@ class TimeLimitMask(gym.Wrapper):
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
-
-
-class TransposeObs(ObservationWrapper):
-    def __init__(self, env=None):
-        """
-        Transpose observation space (base class)
-        """
-        super(TransposeObs, self).__init__(env)
-
-
-class TransposeImage(TransposeObs):
-    def __init__(self, env=None, op=[2, 0, 1]):
-        """
-        Transpose observation space for images
-        """
-        super(TransposeImage, self).__init__(env)
-        assert len(op) == 3, "Error: Operation, " + str(op) + ", must be dim3"
-        self.op = op
-        # TODO: generalize to any 3 dim in obs dict?
-        vid_obs_shape = self.observation_space['video'].shape
-        self.observation_space.spaces['video'] = gym.spaces.Box(
-            self.observation_space['video'].low[0, 0, 0],
-            self.observation_space['video'].high[0, 0, 0], [
-                vid_obs_shape[self.op[0]], vid_obs_shape[self.op[1]],
-                vid_obs_shape[self.op[2]]
-            ], dtype=self.observation_space['video'].dtype)
-
-    def observation(self, ob):
-        ob['video'] = ob['video'].transpose(self.op[0], self.op[1], self.op[2])
-        return ob
 
 
 class VecPyTorch(VecEnvWrapper):
