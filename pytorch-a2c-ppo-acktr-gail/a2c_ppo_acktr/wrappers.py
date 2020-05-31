@@ -38,7 +38,7 @@ class SonicJointEnv(gym.Env):
             game='SonicTheHedgehog-Genesis', state=self.env_states[0])
         self.action_space = env.action_space
         self.observation_space = gym.spaces.Dict({
-            'video': gym.spaces.Box(np.float64(0), np.float64(1), shape=(224, 320, 3), dtype=np.float64)
+            'video': gym.spaces.Box(np.float32(0), np.float32(1), shape=(224, 320, 3), dtype=np.float32)
         })
         env.close()
 
@@ -52,12 +52,12 @@ class SonicJointEnv(gym.Env):
             game='SonicTheHedgehog-Genesis', state=env_state)
         self.em = self.env.em
 
-        obs = {'video': np.float64(self.env.reset(**kwargs))/255}  # easier to work w float64
+        obs = {'video': np.float32(self.env.reset(**kwargs))/255}  # easier to work w float32
         return obs
 
     def step(self, action):
         obs, rew, done, info = self.env.step(action)
-        obs = {'video': np.float64(obs)/255}  # easier to work w float64
+        obs = {'video': np.float32(obs)/255}  # easier to work w float32
         info = info.copy()
         info['env_idx'] = self.env_idx
         env_state = self.env_states[self.env_idx]
@@ -185,6 +185,7 @@ class StochasticFrameSkip(Wrapper):
         self.rng = np.random.RandomState()
         self.supports_want_render = hasattr(env, "supports_want_render")
         # expand observation space
+        self.final_obs = {}
         for obs_name in self.observation_space.spaces.keys():
             cur_obs_space = self.observation_space.spaces[obs_name]
             assert type(cur_obs_space) == gym.spaces.Box
@@ -195,6 +196,7 @@ class StochasticFrameSkip(Wrapper):
             new_space_shape = [new_space_n]+list(cur_obs_space.shape)
             self.observation_space.spaces[obs_name] = gym.spaces.Box(
                 low[0], high[0], new_space_shape, cur_obs_space.dtype)
+            self.final_obs[obs_name] = np.zeros(new_space_shape)
 
     def reset(self, **kwargs):
         self.cur_ac = None
@@ -203,7 +205,6 @@ class StochasticFrameSkip(Wrapper):
     def step(self, ac):
         done = False
         total_rew = 0
-        final_obs = {}
         if self.cur_ac is None:
             # first step after reset, use action
             self.cur_ac = ac
@@ -212,10 +213,8 @@ class StochasticFrameSkip(Wrapper):
             self.cur_ac = ac
         obs, rew, done, info = self.env.step(self.cur_ac)
         # initialize final obs
+        final_obs = self.final_obs.copy()
         for obs_name in obs.keys():
-            new_space_n = self.n if self.keep_frames[obs_name] else 1
-            new_space_shape = [new_space_n]+list(obs[obs_name].shape)
-            final_obs[obs_name] = np.zeros(new_space_shape)
             final_obs[obs_name][0] = obs[obs_name]
 
         self.cur_ac = ac
@@ -254,12 +253,12 @@ class EnvAudio(ObservationWrapper):
     """
     def __init__(self, env):
         super(EnvAudio, self).__init__(env)
-        audio_obs_space = gym.spaces.Box(np.float64(-1), np.float64(1), shape=(735,), dtype=np.float64)
+        audio_obs_space = gym.spaces.Box(np.float32(-1), np.float32(1), shape=(735,), dtype=np.float32)
         self.observation_space.spaces['audio'] = audio_obs_space
 
     def observation(self, obs):
         audio = self.em.get_audio()[:735]  # should be 735 samples but sometimes receives 736
-        audio = audio.mean(axis=1, dtype=np.float64) / 2**15  # convert to mono and float64
+        audio = audio.mean(axis=1, dtype=np.float32) / 2**15  # convert to mono and float32
         obs['audio'] = audio
         return obs
 
