@@ -23,11 +23,10 @@ class ProcessMelSpectrogram(nn.Module):
         #    x = torch.flatten(x, start_dim=1, end_dim=-1)
         x = torch.flatten(x, 1)
         # x shape [b, flat_samples]
-        x = x.float()
         x = self.mel_s(x)  # shape [b, n_mels, flat_samples/hop_len]
         x = self.a_to_db(x)  # (max - min) range [0, 80]
-        x = x - x.max(1, True)[0].max(1, True)[0]  # range [0, -80]
-        x = x.unsqueeze(1) / -80  # range [0, 1], shape [b, 1, n_mels, flat_samples/hop_len]
+        x = x - x.min(1, True)[0].min(1, True)[0]  # range [0, 80]
+        x = x.unsqueeze(1) / 80  # range [0, 1], shape [b, 1, n_mels, flat_samples/hop_len]
         return x
 
 
@@ -51,4 +50,4 @@ class ProcessRGBVideo(nn.Module):
         #    x = x.transpose(1, 2)  # [batch, channels, depth, height, width]
         #    x = x.squeeze(2)  # if depth 1, [batch, channels, height, width]
         # x shape [batch, channels, height, width] or [batch, channels, depth, height, width]
-        return x / 255
+        return x / 256

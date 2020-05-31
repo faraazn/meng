@@ -84,7 +84,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
 
                     if 'audio' in obs.keys():
                         # obs['audio'] shape [1, 735] and dtype float32??
-                        aud_frame = np.int16(obs['audio'].detach().cpu().numpy()[0]*2**15)
+                        aud_frame = np.int16(obs['audio'].detach().cpu().numpy()[0])
                         aud_record.writeframesraw(aud_frame)
 
             # Obser reward and next obs

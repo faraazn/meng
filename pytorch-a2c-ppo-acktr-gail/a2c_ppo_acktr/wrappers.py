@@ -38,6 +38,7 @@ class SonicJointEnv(gym.Env):
             game='SonicTheHedgehog-Genesis', state=self.env_states[0])
         self.action_space = env.action_space
         self.observation_space = gym.spaces.Dict({
+            # easier to work with float32 but faster if we only specify in obs space and cast with cuda
             'video': gym.spaces.Box(np.float32(0), np.float32(1), shape=(224, 320, 3), dtype=np.float32)
         })
         env.close()
@@ -52,13 +53,12 @@ class SonicJointEnv(gym.Env):
             game='SonicTheHedgehog-Genesis', state=env_state)
         self.em = self.env.em
 
-        obs = {'video': np.float32(self.env.reset(**kwargs))/255}  # easier to work w float32
+        obs = {'video': self.env.reset(**kwargs)}
         return obs
 
     def step(self, action):
         obs, rew, done, info = self.env.step(action)
-        obs = {'video': np.float32(obs)/255}  # easier to work w float32
-        info = info.copy()
+        obs = {'video': obs}
         info['env_idx'] = self.env_idx
         env_state = self.env_states[self.env_idx]
         info['env_state'] = env_state
@@ -200,7 +200,11 @@ class StochasticFrameSkip(Wrapper):
 
     def reset(self, **kwargs):
         self.cur_ac = None
-        return self.env.reset(**kwargs)
+        final_obs = self.final_obs.copy()
+        obs = self.env.reset(**kwargs)
+        for obs_name in obs.keys():
+            final_obs[obs_name][-1] = obs[obs_name]
+        return final_obs
 
     def step(self, ac):
         done = False
@@ -253,12 +257,13 @@ class EnvAudio(ObservationWrapper):
     """
     def __init__(self, env):
         super(EnvAudio, self).__init__(env)
+        # easier to work with float32 but faster if we only specify in obs space and cast with cuda
         audio_obs_space = gym.spaces.Box(np.float32(-1), np.float32(1), shape=(735,), dtype=np.float32)
         self.observation_space.spaces['audio'] = audio_obs_space
 
     def observation(self, obs):
         audio = self.em.get_audio()[:735]  # should be 735 samples but sometimes receives 736
-        audio = audio.mean(axis=1, dtype=np.float32) / 2**15  # convert to mono and float32
+        audio = audio.mean(axis=1, dtype=np.int16)
         obs['audio'] = audio
         return obs
 
