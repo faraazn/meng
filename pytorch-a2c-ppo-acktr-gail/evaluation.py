@@ -86,7 +86,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                         # obs['audio'] shape [1, 735] and dtype float32
                         # or shape [1, memory (or frameskip), 735] or [1, m, f, 735]
                         # TODO: need to differentiate between mem and frameskip, mem needs to be removed
-                        aud_frame = np.int16(obs['audio'].detach().cpu().numpy()[0][0])
+                        aud_frame = np.int16(obs['audio'].detach().cpu().numpy()[0][-1])
                         aud_record.writeframesraw(aud_frame)
 
             # Obser reward and next obs

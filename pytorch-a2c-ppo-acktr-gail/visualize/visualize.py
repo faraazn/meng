@@ -35,7 +35,7 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, value, ac
     score_cam = ScoreCam(actor_critic, tgt_layers)
     cams = score_cam.generate_cam(processed_obs, action)
 
-    frame_x = 320*3  # this needs to be known max length along x axis to align heatmap etc
+    frame_x = 1080#320*3  # this needs to be known max length along x axis to align heatmap etc
     frame_y = 100  # this increases with each obs since we append along y axis
 
     # generate frame info

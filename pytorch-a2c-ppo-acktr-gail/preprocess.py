@@ -9,7 +9,7 @@ class ProcessMelSpectrogram(nn.Module):
     Expects as input: [batch, samples] or [b, memory (or frameskip), s], or [b, m, f, s]
     Output: [batch, 1, n_mels, samples/hop_len]
     """
-    def __init__(self, x_shape, sr=44100, n_fft=1024, n_mels=256, win_len=256, hop_len=32):
+    def __init__(self, x_shape, sr=44100, n_fft=1024, n_mels=256, win_len=256, hop_len=128):
         super(ProcessMelSpectrogram, self).__init__()
         # og spectrogram process: sr 11025, n_fft 1024, n_mels 256, win_len 256, hop_len 8
         # og output shape 256, 92
@@ -50,7 +50,6 @@ class ProcessRGBVideo(nn.Module):
         self.p_dims = list(range(len(self.x_shape)))
         self.p_dims = self.p_dims[:-3] + [self.p_dims[-1]] + self.p_dims[-3:-1]
 
-        print(f"rgb input shape {self.x_shape}")
         if len(self.x_shape) == 6:
             depth = self.x_shape[1] * self.x_shape[2]
         elif len(self.x_shape) == 5:
@@ -59,7 +58,6 @@ class ProcessRGBVideo(nn.Module):
             self.output_shape = [self.x_shape[0], self.x_shape[-1], self.x_shape[-3], self.x_shape[-2]]
         else:
             self.output_shape = [self.x_shape[0], self.x_shape[-1], self.depth, self.x_shape[-3], self.x_shape[-2]]
-        print(f"rgb output shape {self.output_shape}")
 
     def forward(self, x):
         x = x.permute(self.p_dims)

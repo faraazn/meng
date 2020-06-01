@@ -282,7 +282,7 @@ class ObsMemoryBuffer(ObservationWrapper):
             # initialize memory buffer with 0 as default obs value
             for i in range(n):
                 obs_sample = np.zeros(self.observation_space[obs_name].shape)
-                self.obs_mem_buf[obs_name].append(np.expand_dims(obs_sample, 0))
+                self.obs_mem_buf[obs_name].append(obs_sample)
             # expand observation space
             cur_obs_space = self.observation_space.spaces[obs_name]
             assert type(cur_obs_space) == gym.spaces.Box
@@ -293,12 +293,12 @@ class ObsMemoryBuffer(ObservationWrapper):
             self.observation_space.spaces[obs_name] = gym.spaces.Box(
                 low[0], high[0], new_space_shape, cur_obs_space.dtype)
 
+
     def observation(self, obs):
         final_obs = {}
         for obs_name in obs.keys():
-            self.obs_mem_buf[obs_name].popleft()  # remove oldest obs
-            self.obs_mem_buf[obs_name].append(np.expand_dims(obs[obs_name], 0))  # add current obs
-            final_obs[obs_name] = np.concatenate(self.obs_mem_buf[obs_name], 0)
+            self.obs_mem_buf[obs_name].append(np.copy(obs[obs_name]))  # append copy
+            final_obs[obs_name] = np.stack(list(self.obs_mem_buf[obs_name]))
         return final_obs
 
 
