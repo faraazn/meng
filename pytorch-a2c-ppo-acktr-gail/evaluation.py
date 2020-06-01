@@ -48,7 +48,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                 vid_filepath = "/tmp/temp.webm"
             
             vid_frame = gen_eval_vid_frame(
-                actor_critic, env_state, 0, 0, 0, 0, 0, 0, None, obs, {'video': 5, 'audio': 5})
+                actor_critic, env_state, 0, 0, 0, 0, 0, 0, 0, None, obs, {'video': 5, 'audio': 5})
             vid_height = vid_frame.shape[0]
             vid_width = vid_frame.shape[1]
             fps = 60/4  # record at 1x speed with frame skip 4
@@ -74,16 +74,16 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                     max_x = info[0]['max_x'] if info else 0
                     pct = info[0]['max_x']/info[0]['lvl_max_x']*100 if info else 0
                     rew = info[0]['sum_r'] if info else 0
+                    v = action.item()
                     a = action.item()
                     tgt_layers = {'video': 5, 'audio': 5}
                     vid_frame = gen_eval_vid_frame(
-                        actor_critic, env_state, x, max_x, pct, rew, t, a, logits, obs, tgt_layers)
-                    assert vid_frame.shape[0] == vid_height and vid_frame.shape[1] == vid_width
+                        actor_critic, env_state, x, max_x, pct, rew, t, v, a, logits, obs, tgt_layers)
                     vid_frame = vid_frame[:,:,::-1]  # format 'BGR' for cv2 writing
                     vid_record.write(vid_frame)
 
                     if 'audio' in obs.keys():
-                        # obs['audio'] shape [1, 735] and dtype float32??
+                        # obs['audio'] shape [1, 735] and dtype float32
                         aud_frame = np.int16(obs['audio'].detach().cpu().numpy()[0])
                         aud_record.writeframesraw(aud_frame)
 
@@ -105,6 +105,10 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
 
                 eval_dict['x'][env_state].append(info[0]['max_x'])
                 eval_dict['%'][env_state].append(info[0]['max_x']/info[0]['lvl_max_x'] * 100)
+
+                writer.add_scalar(f'eval_episode_x/{env_state}', eval_dict['x'][env_state][-1], t)
+                writer.add_scalar(f'eval_episode_%/{env_state}', eval_dict['%'][env_state][-1], t)
+                writer.add_scalar(f'eval_episode_r/{env_state}', eval_dict['r'][env_state][-1], t)
                 obs = env.reset()
 
             t += 1
@@ -119,6 +123,10 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             eval_dict['r'][env_state].append(r)
             eval_dict['x'][env_state].append(last_info[0]['max_x'])
             eval_dict['%'][env_state].append(last_info[0]['max_x']/info[0]['lvl_max_x'] * 100)
+            
+            writer.add_scalar(f'eval_episode_x/{env_state}', eval_dict['x'][env_state][-1], t)
+            writer.add_scalar(f'eval_episode_%/{env_state}', eval_dict['%'][env_state][-1], t)
+            writer.add_scalar(f'eval_episode_r/{env_state}', eval_dict['r'][env_state][-1], t)
 
         print(f"    generated eval data for {env_state}: {time.time()-start:.1f}s")
 
@@ -126,9 +134,9 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             start = time.time()
             vid_frames = np.expand_dims(np.concatenate(vid_frames), axis=0)
             writer.add_video(env_state, vid_frames, global_step=step, fps=60)  # 4x speed w frameskip 4
-            writer.add_scalar(f'eval_episode_x/{env_state}', np.mean(eval_dict['x'][env_state]), step)
-            writer.add_scalar(f'eval_episode_%/{env_state}', np.mean(eval_dict['%'][env_state]), step)
-            writer.add_scalar(f'eval_episode_r/{env_state}', np.mean(eval_dict['r'][env_state]), step)
+            writer.add_scalar(f'eval_episode_x_avg/{env_state}', np.mean(eval_dict['x'][env_state]), step)
+            writer.add_scalar(f'eval_episode_%_avg/{env_state}', np.mean(eval_dict['%'][env_state]), step)
+            writer.add_scalar(f'eval_episode_r_avg/{env_state}', np.mean(eval_dict['r'][env_state]), step)
             print(f"    wrote video to tensorboard")
 
         if vid_save_dir:

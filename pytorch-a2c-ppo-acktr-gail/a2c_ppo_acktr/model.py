@@ -229,13 +229,21 @@ class NNBase2(NNBase):
                     Flatten(), init_(nn.Linear(64*24*36, 512)), nn.ReLU())  # [512]
                 self._hidden_size += 512
             elif obs_module[obs_name] == 'audio-small':
-                # My original audio model - 1,900,544 parameters
+                # My original small audio model - 1,900,544 parameters
                 module = nn.Sequential( 
                     init_(nn.Conv2d(1, 32, 8, stride=4)), nn.ReLU(),  # [32, 63, 22]
                     init_(nn.Conv2d(32, 32, 4, stride=2)), nn.ReLU(),  # [32, 30, 10]
                     init_(nn.Conv2d(32, 32, 3, stride=1)), nn.ReLU(),  # [32, 28, 8]
                     Flatten(), init_(nn.Linear(32*28*8, 256)), nn.ReLU())  # [256]
                 self._hidden_size += 256
+            elif obs_module[obs_name] == 'audio-medium':
+                # My original medium audio model - 7,411,712 parameters
+                module = nn.Sequential( 
+                    init_(nn.Conv2d(1, 32, 8, stride=4)), nn.ReLU(),  # [32, 63, 22]
+                    init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),  # [64, 30, 10]
+                    init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(),  # [64, 28, 8]
+                    Flatten(), init_(nn.Linear(64*28*8, 512)), nn.ReLU())  # [512]
+                self._hidden_size += 512
             else:
                 raise NotImplementedError
             

@@ -22,7 +22,7 @@ def gen_eval_vid_frame_small(actor_critic, obs):
     return vid_process
 
 
-def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, logits, obs, tgt_layers):
+def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, value, action, logits, obs, tgt_layers):
     actor_critic.eval()
     processed_obs = obs.copy()
     for obs_name in sorted(obs.keys()):
@@ -46,7 +46,7 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, l
     draw.text(
         (0, 4),
         f"""    {env_state} | t: {t}
-            x: {x:07.2f} | max_x: {max_x:07.2f} | pct: {pct:05.2f}% | rew: {rew:07.2f}
+            x: {x:07.2f} | max_x: {max_x:07.2f} | pct: {pct:05.2f}% | rew: {rew:07.2f} | val: {value:.4f}
             action: {ACTIONS[action]} | logits: {logits_txt}""",
         (255,255,255))
 
@@ -62,6 +62,12 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, action, l
         
         hm, hm_on_im = apply_colormap_on_image(obs_im, cams[obs_name], 'hsv')
         hm = ImageEnhance.Brightness(hm).enhance(0.75)  # heatmap is usually too bright
+
+        if obs_name == 'audio':
+            # for some reason spectrogram ends up flipped
+            obs_im = obs_im.transpose(Image.FLIP_TOP_BOTTOM)
+            hm = hm.transpose(Image.FLIP_TOP_BOTTOM)
+            hm_on_im = hm_on_im.transpose(Image.FLIP_TOP_BOTTOM)
 
         # add to previous image
         new_frame_y = frame_y + obs_im.size[1]
