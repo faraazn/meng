@@ -27,7 +27,7 @@ def make_env(env_states, seed, rank, allow_early_resets, mode):
         if mode == 'train':
             env = RewardScaler(env, scale=0.005)
         env = StochasticFrameSkip(env, 4, 0.25, {'video': False, 'audio': True})
-        #env = ObsMemoryBuffer(env, {'video': 1, 'audio': 1})
+        env = ObsMemoryBuffer(env, {'video': 1, 'audio': 2})
         env = TimeLimit(env, max_episode_steps=4500)
 
         env.seed(seed + rank)

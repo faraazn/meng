@@ -5,7 +5,7 @@ import retro
 import random
 import librosa
 import torch
-
+import collections
 
 ZONE_ACT_2_LVL_MAX_X = {
     "GreenHillZone.Act1":  9568, "GreenHillZone.Act2":  8032,  "GreenHillZone.Act3":  10538,
@@ -277,26 +277,28 @@ class ObsMemoryBuffer(ObservationWrapper):
         self.obs_mem_buf = {}
         for obs_name in self.observation_space.spaces.keys():
             n = memory_len[obs_name]
-            # expand observation space
-            cur_obs_space = self.observation_space.spaces[obs_name]
-            assert type(cur_obs_space) == gym.spaces.Box
-            assert np.unique(cur_obs_space.low) == 1 and np.unique(cur_obs_space.high) == 1
-            new_space_shape = [n]+list(cur_obs_space.shape)
-            self.observation_space.spaces[obs_name] = gym.spaces.Box(
-                cur_obs_space.low[0], cur_obs_space.high[0], new_space_shape, cur_obs_space.dtype)
             # initialize deque
-            self.obs_mem_buf[obs_name] = collections.deque(max_len=n)
+            self.obs_mem_buf[obs_name] = collections.deque(maxlen=n)
             # initialize memory buffer with 0 as default obs value
             for i in range(n):
                 obs_sample = np.zeros(self.observation_space[obs_name].shape)
-                self.obs_mem_buf[obs_name].append(obs_sample)
+                self.obs_mem_buf[obs_name].append(np.expand_dims(obs_sample, 0))
+            # expand observation space
+            cur_obs_space = self.observation_space.spaces[obs_name]
+            assert type(cur_obs_space) == gym.spaces.Box
+            low = np.unique(cur_obs_space.low)
+            high = np.unique(cur_obs_space.high)
+            assert len(low) == 1 and len(high) == 1
+            new_space_shape = [n]+list(cur_obs_space.shape)
+            self.observation_space.spaces[obs_name] = gym.spaces.Box(
+                low[0], high[0], new_space_shape, cur_obs_space.dtype)
 
     def observation(self, obs):
         final_obs = {}
         for obs_name in obs.keys():
-            self.obs_mem_buf.popleft()  # remove oldest obs
-            self.obs_mem_buf.append(obs[obs_name])  # add current obs
-            final_obs[obs_name] = np.concatenate(self.obs_mem_buf[obs_name])
+            self.obs_mem_buf[obs_name].popleft()  # remove oldest obs
+            self.obs_mem_buf[obs_name].append(np.expand_dims(obs[obs_name], 0))  # add current obs
+            final_obs[obs_name] = np.concatenate(self.obs_mem_buf[obs_name], 0)
         return final_obs
 
 

@@ -198,55 +198,75 @@ class NNBase2(NNBase):
         for obs_name in sorted(obs_module.keys()):  # order of adding layers matters
             # determine preprocessing
             if obs_process[obs_name] == 'mel_s':
-                p_process = ProcessMelSpectrogram()  # range [0, 1], shape [b, 1, 256, 92]
+                p_process = ProcessMelSpectrogram(self.obs_space[obs_name].shape)
             elif obs_process[obs_name] == 'pix_norm':
-                p_process = ProcessRGBVideo()
+                p_process = ProcessRGBVideo(self.obs_space[obs_name].shape)
             else:
                 raise NotImplementedError
             
             # determine module
             if obs_module[obs_name] == 'video-small':
-                # My original video model - 942,080 parameters
-                module = nn.Sequential(  # video shape [3, 224, 320]
+                # My original video model - 942,080 parameters w video shape [b, 3, 224, 320]
+                assert len(p_process.output_shape) == 4  # [b, 3, h, w]
+                conv_dim = (np.array(p_process.output_shape[2:]) - 8) // 4 + 1
+                conv_dim = (conv_dim - 4) // 4 + 1
+                conv_dim = (conv_dim - 3) // 2 + 1
+                module = nn.Sequential(
                     init_(nn.Conv2d(3, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
                     init_(nn.Conv2d(32, 64, 4, stride=4)), nn.ReLU(),  # [64, 13, 19]
                     init_(nn.Conv2d(64, 32, 3, stride=2)), nn.ReLU(), Flatten(),  # [32, 6, 9]
-                    init_(nn.Linear(32*6*9, 512)), nn.ReLU())
+                    init_(nn.Linear(32*np.prod(conv_dim), 512)), nn.ReLU())
                 self._hidden_size += 512
             elif obs_module[obs_name] == 'video-medium':
-                # OpenAI Baselines small - 8,104,960 parameters
-                module = nn.Sequential(  # video shape [3, 224, 320]
+                # OpenAI Baselines small - 8,104,960 parameters w video shape [b, 3, 224, 320]
+                assert len(p_process.output_shape) == 4  # [b, 3, h, w]
+                conv_dim = (np.array(p_process.output_shape[2:]) - 8) // 4 + 1
+                conv_dim = (conv_dim - 4) // 2 + 1
+                module = nn.Sequential(
                     init_(nn.Conv2d(3, 16, 8, stride=4)), nn.ReLU(),  # [16, 55, 79]
                     init_(nn.Conv2d(16, 32, 4, stride=2)), nn.ReLU(),  # [32, 26, 38]
-                    init_(nn.Linear(32*26*38, 512)), nn.ReLU())
+                    init_(nn.Linear(32*np.prod(conv_dim), 512)), nn.ReLU())
                 self._hidden_size += 512
             elif obs_module[obs_name] == 'video-large':
-                # OpenAI Baselines large - 28,387,328 parameters
-                module = nn.Sequential(  # video shape [3, 224, 320]
+                # OpenAI Baselines large - 28,387,328 parameters w video shape [b, 3, 224, 320]
+                assert len(p_process.output_shape) == 4  # [b, 3, h, w]
+                conv_dim = (np.array(p_process.output_shape[2:]) - 8) // 4 + 1
+                conv_dim = (conv_dim - 4) // 2 + 1
+                conv_dim = (conv_dim - 3) // 1 + 1
+                module = nn.Sequential(
                     init_(nn.Conv2d(3, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
                     init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),  # [64, 26, 38]
                     init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(),  # [64, 24, 36]
-                    Flatten(), init_(nn.Linear(64*24*36, 512)), nn.ReLU())  # [512]
+                    Flatten(), init_(nn.Linear(64*np.prod(conv_dim), 512)), nn.ReLU())  # [512]
                 self._hidden_size += 512
             elif obs_module[obs_name] == 'audio-small':
                 # My original small audio model - 1,900,544 parameters
+                assert len(p_process.output_shape) == 4  # [b, 1, h, w]
+                conv_dim = (np.array(p_process.output_shape[2:]) - 8) // 4 + 1
+                conv_dim = (conv_dim - 4) // 2 + 1
+                conv_dim = (conv_dim - 3) // 1 + 1
                 module = nn.Sequential( 
                     init_(nn.Conv2d(1, 32, 8, stride=4)), nn.ReLU(),  # [32, 63, 22]
                     init_(nn.Conv2d(32, 32, 4, stride=2)), nn.ReLU(),  # [32, 30, 10]
                     init_(nn.Conv2d(32, 32, 3, stride=1)), nn.ReLU(),  # [32, 28, 8]
-                    Flatten(), init_(nn.Linear(32*28*8, 256)), nn.ReLU())  # [256]
+                    Flatten(), init_(nn.Linear(32*np.prod(conv_dim), 256)), nn.ReLU())  # [256]
                 self._hidden_size += 256
             elif obs_module[obs_name] == 'audio-medium':
                 # My original medium audio model - 7,411,712 parameters
+                assert len(p_process.output_shape) == 4  # [b, 1, h, w]
+                conv_dim = (np.array(p_process.output_shape[2:]) - 8) // 4 + 1
+                conv_dim = (conv_dim - 4) // 2 + 1
+                conv_dim = (conv_dim - 3) // 1 + 1
                 module = nn.Sequential( 
                     init_(nn.Conv2d(1, 32, 8, stride=4)), nn.ReLU(),  # [32, 63, 22]
                     init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),  # [64, 30, 10]
                     init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(),  # [64, 28, 8]
-                    Flatten(), init_(nn.Linear(64*28*8, 512)), nn.ReLU())  # [512]
+                    Flatten(), init_(nn.Linear(64*np.prod(conv_dim), 512)), nn.ReLU())  # [512]
                 self._hidden_size += 512
             else:
                 raise NotImplementedError
-            
+            print(f"conv output shape {conv_dim}")
+
             if obs_name == 'video':
                 self.video_process = p_process
                 self.video_module = module
