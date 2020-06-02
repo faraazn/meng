@@ -216,6 +216,7 @@ class StochasticFrameSkip(Wrapper):
             # first substep, delay with probability stickprob
             self.cur_ac = ac
         obs, rew, done, info = self.env.step(self.cur_ac)
+        total_rew += rew
         # initialize final obs
         final_obs = self.final_obs.copy()
         for obs_name in obs.keys():
