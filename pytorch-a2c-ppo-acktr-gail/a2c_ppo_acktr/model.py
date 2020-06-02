@@ -80,13 +80,11 @@ class Policy(nn.Module):
 
 
     def get_value(self, inputs, rnn_hxs, masks):
-        # inputs is a dict, 0: vid_obs, 1: aud_obs
         actor_features, _ = self.base(inputs, rnn_hxs, masks)
         value = self.critic_linear(actor_features)
         return value
 
     def evaluate_actions(self, inputs, rnn_hxs, masks, action):
-        # inputs is a dict, 0: vid_obs, 1: aud_obs
         actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
         value = self.critic_linear(actor_features)
         dist = self.dist(actor_features)

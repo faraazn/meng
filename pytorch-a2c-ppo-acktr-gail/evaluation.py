@@ -88,6 +88,18 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                         # TODO: need to differentiate between mem and frameskip, mem needs to be removed
                         aud_frame = np.int16(obs['audio'].detach().cpu().numpy()[0][-1])
                         aud_record.writeframesraw(aud_frame)
+                if vid_save_dir and (t == MAX_VID_SAVE or t == eval_t - 1):
+                    vid_record.release()
+
+                    if 'audio' in obs.keys():
+                        aud_record.close()
+                        # combine the audio and video into a new file
+                        final_vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.webm")
+                        process = subprocess.check_call(
+                            ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', '-i', vid_filepath,
+                            '-i', aud_filepath, '-c:v', 'copy', '-c:a', 'libopus', final_vid_filepath])
+                        vid_filepath = final_vid_filepath
+                    print(f"    wrote video to {vid_filepath}")
 
             # Obser reward and next obs
             obs, reward, done, info = env.step(action)
@@ -99,7 +111,15 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             if writer and t < MAX_WRITER:
                 vid_frame = gen_eval_vid_frame_small(actor_critic, obs)
                 vid_frames.append(np.expand_dims(vid_frame, axis=0))
+            if writer and (t == MAX_WRITER or t == eval_t - 1):
+                vid_frames = np.expand_dims(np.concatenate(vid_frames), axis=0)
+                writer.add_video(env_state, vid_frames, global_step=step, fps=60)  # 4x speed w frameskip 4
+                writer.add_scalar(f'eval_episode_x_avg/{env_state}', np.mean(eval_dict['x'][env_state]), step)
+                writer.add_scalar(f'eval_episode_%_avg/{env_state}', np.mean(eval_dict['%'][env_state]), step)
+                writer.add_scalar(f'eval_episode_r_avg/{env_state}', np.mean(eval_dict['r'][env_state]), step)
+                print(f"    wrote video to tensorboard")
                 
+
             if done[0]:
                 r = ep_reward[0].detach().cpu().item()
                 eval_dict['r'][env_state].append(r)
@@ -131,29 +151,6 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             writer.add_scalar(f'eval_episode_r/{env_state}', eval_dict['r'][env_state][-1], t)
 
         print(f"    generated eval data for {env_state}: {time.time()-start:.1f}s")
-
-        if writer:
-            start = time.time()
-            vid_frames = np.expand_dims(np.concatenate(vid_frames), axis=0)
-            writer.add_video(env_state, vid_frames, global_step=step, fps=60)  # 4x speed w frameskip 4
-            writer.add_scalar(f'eval_episode_x_avg/{env_state}', np.mean(eval_dict['x'][env_state]), step)
-            writer.add_scalar(f'eval_episode_%_avg/{env_state}', np.mean(eval_dict['%'][env_state]), step)
-            writer.add_scalar(f'eval_episode_r_avg/{env_state}', np.mean(eval_dict['r'][env_state]), step)
-            print(f"    wrote video to tensorboard")
-
-        if vid_save_dir:
-            start = time.time()
-            vid_record.release()
-
-            if 'audio' in obs.keys():
-                aud_record.close()
-                # combine the audio and video into a new file
-                final_vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.webm")
-                process = subprocess.check_call(
-                    ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', '-i', vid_filepath,
-                     '-i', aud_filepath, '-c:v', 'copy', '-c:a', 'libopus', final_vid_filepath])
-                vid_filepath = final_vid_filepath
-            print(f"    wrote video to {vid_filepath}")
 
     # compute evaluation metric
     score = np.mean([np.mean(eval_dict['r'][env_state]) for env_state in env_states])

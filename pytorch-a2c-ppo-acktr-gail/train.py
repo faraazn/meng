@@ -76,12 +76,18 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             actor_critic, args.clip_param, args.ppo_epoch, args.num_mini_batch,
             args.value_loss_coef, args.entropy_coef, lr=args.lr, eps=args.eps,
             max_grad_norm=args.max_grad_norm)
-    elif args.algo == 'rainbow':
-        assert False, 'Rainbow not implemented yet.'
-    elif args.algo == 'jerk':
-        assert False, 'JERK not implemented yet.'
+    elif args.algo == 'a2c':
+        agent = algo.A2C_ACKTR(
+            actor_critic, args.value_loss_coef, args.entropy_coef, lr=args.lr,
+            eps=args.eps, alpha=args.alpha, max_grad_norm=args.max_grad_norm,
+            acktr=False)
+    elif args.algo == 'acktr':
+        agent = algo.A2C_ACKTR(
+            actor_critic, args.value_loss_coef, args.entropy_coef, lr=args.lr,
+            eps=args.eps, alpha=args.alpha, max_grad_norm=args.max_grad_norm,
+            acktr=True)
     else:
-        assert False, f'Invalid algorithm provided.'
+        raise NotImplementedError
 
     rollouts = RolloutStorage(args.num_steps, args.num_processes,
                               envs.observation_space, envs.action_space,

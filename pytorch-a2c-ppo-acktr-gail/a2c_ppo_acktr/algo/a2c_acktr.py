@@ -31,12 +31,15 @@ class A2C_ACKTR():
                 actor_critic.parameters(), lr, eps=eps, alpha=alpha)
 
     def update(self, rollouts):
-        obs_shape = rollouts.obs.size()[2:]
+        # video torch.Size([33, 32, 1, 1, 224, 320, 3]) torch.float32
+        # audio torch.Size([33, 32, 12, 4, 735]) torch.float32
+        obs_shape = {k: rollouts.obs[k].size()[2:] for k in rollouts.obs.keys()} 
         action_shape = rollouts.actions.size()[-1]
         num_steps, num_processes, _ = rollouts.rewards.size()
 
+        obs = {k: rollouts.obs[k][:-1].view(-1, *obs_shape[k]) for k in rollouts.obs.keys()}
         values, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions(
-            rollouts.obs[:-1].view(-1, *obs_shape),
+            obs,
             rollouts.recurrent_hidden_states[0].view(
                 -1, self.actor_critic.recurrent_hidden_state_size),
             rollouts.masks[:-1].view(-1, 1),
