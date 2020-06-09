@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from preprocess import ProcessMelSpectrogram, ProcessRGBVideo
+from preprocess import ProcessMelSpectrogram, ProcessRGBVideo, ProcessGrayscaleVideo
 
 from a2c_ppo_acktr.distributions import Bernoulli, Categorical, DiagGaussian
 from a2c_ppo_acktr.utils import init
@@ -199,6 +199,8 @@ class NNBase2(NNBase):
                 p_process = ProcessMelSpectrogram(self.obs_space[obs_name].shape)
             elif obs_process[obs_name] == 'pix_norm':
                 p_process = ProcessRGBVideo(self.obs_space[obs_name].shape)
+            elif obs_process[obs_name] == 'grayscale':
+                p_process = ProcessGrayscaleVideo(self.obs_space[obs_name].shape)
             else:
                 raise NotImplementedError
             
@@ -210,7 +212,7 @@ class NNBase2(NNBase):
                 conv_dim = (conv_dim - 4) // 4 + 1
                 conv_dim = (conv_dim - 3) // 2 + 1
                 module = nn.Sequential(
-                    init_(nn.Conv2d(3, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
+                    init_(nn.Conv2d(p_process.output_shape[1], 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
                     init_(nn.Conv2d(32, 64, 4, stride=4)), nn.ReLU(),  # [64, 13, 19]
                     init_(nn.Conv2d(64, 32, 3, stride=2)), nn.ReLU(), Flatten(),  # [32, 6, 9]
                     init_(nn.Linear(32*np.prod(conv_dim), 512)), nn.ReLU())
@@ -221,7 +223,7 @@ class NNBase2(NNBase):
                 conv_dim = (np.array(p_process.output_shape[2:]) - 8) // 4 + 1
                 conv_dim = (conv_dim - 4) // 2 + 1
                 module = nn.Sequential(
-                    init_(nn.Conv2d(3, 16, 8, stride=4)), nn.ReLU(),  # [16, 55, 79]
+                    init_(nn.Conv2d(p_process.output_shape[1], 16, 8, stride=4)), nn.ReLU(),  # [16, 55, 79]
                     init_(nn.Conv2d(16, 32, 4, stride=2)), nn.ReLU(),  # [32, 26, 38]
                     init_(nn.Linear(32*np.prod(conv_dim), 512)), nn.ReLU())
                 self._hidden_size += 512
@@ -232,7 +234,7 @@ class NNBase2(NNBase):
                 conv_dim = (conv_dim - 4) // 2 + 1
                 conv_dim = (conv_dim - 3) // 1 + 1
                 module = nn.Sequential(
-                    init_(nn.Conv2d(3, 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
+                    init_(nn.Conv2d(p_process.output_shape[1], 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
                     init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),  # [64, 26, 38]
                     init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(),  # [64, 24, 36]
                     Flatten(), init_(nn.Linear(64*np.prod(conv_dim), 512)), nn.ReLU())  # [512]

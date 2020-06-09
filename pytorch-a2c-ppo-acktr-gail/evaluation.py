@@ -36,7 +36,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
         obs = env.reset()
         
         if vid_save_dir:
-            vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.webm")
+            vid_filepath = os.path.join(vid_save_dir, f"{env_state[1]}-{step}.webm")
             if 'audio' in obs.keys():
                 sr = 44100 #int(self.env.em.get_audio_rate())
                 aud_filepath = "/tmp/temp.wav"
@@ -48,7 +48,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                 vid_filepath = "/tmp/temp.webm"
             
             vid_frame = gen_eval_vid_frame(
-                actor_critic, env_state, 0, 0, 0, 0, 0, 0, 0, None, obs, {'video': 5, 'audio': 5})
+                actor_critic, env_state[1], 0, 0, 0, 0, 0, 0, 0, None, obs, {'video': 5})#, 'audio': 5})
             vid_height = vid_frame.shape[0]
             vid_width = vid_frame.shape[1]
             fps = 60/4  # record at 1x speed with frame skip 4
@@ -76,11 +76,11 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                     rew = info[0]['sum_r'] if info else 0
                     v = action.item()
                     a = action.item()
-                    tgt_layers = {'video': 5, 'audio': 5}
+                    tgt_layers = {'video': 5}#, 'audio': 5}
                     vid_frame = gen_eval_vid_frame(
-                        actor_critic, env_state, x, max_x, pct, rew, t, v, a, logits, obs, tgt_layers)
-                    vid_frame = vid_frame[:,:,::-1]  # format 'BGR' for cv2 writing
-                    vid_record.write(vid_frame)
+                        actor_critic, env_state[1], x, max_x, pct, rew, t, v, a, logits, obs, tgt_layers)
+                    #vid_frame = vid_frame[:,:,::-1]  # format 'BGR' for cv2 writing
+                    vid_record.write(vid_frame[:,:,::-1])  # format 'BGR' for cv2 writing
 
                     if 'audio' in obs.keys():
                         # obs['audio'] shape [1, 735] and dtype float32
@@ -94,7 +94,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                     if 'audio' in obs.keys():
                         aud_record.close()
                         # combine the audio and video into a new file
-                        final_vid_filepath = os.path.join(vid_save_dir, f"{env_state}-{step}.webm")
+                        final_vid_filepath = os.path.join(vid_save_dir, f"{env_state[1]}-{step}.webm")
                         process = subprocess.check_call(
                             ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', '-i', vid_filepath,
                             '-i', aud_filepath, '-c:v', 'copy', '-c:a', 'libopus', final_vid_filepath])
@@ -109,14 +109,15 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             masks.fill_(0.0 if done else 1.0)
 
             if writer and t < MAX_WRITER:
-                vid_frame = gen_eval_vid_frame_small(actor_critic, obs)
-                vid_frames.append(np.expand_dims(vid_frame, axis=0))
+                #vid_frame = gen_eval_vid_frame_small(actor_critic, obs)
+                print(f"vid_frame {vid_frame.shape}, {vid_frame.min()}, {vid_frame.max()}")
+                vid_frames.append(np.expand_dims(vid_frame.transpose((2,0,1)), axis=0))
             if writer and (t == MAX_WRITER or t == eval_t - 1):
                 vid_frames = np.expand_dims(np.concatenate(vid_frames), axis=0)
-                writer.add_video(env_state, vid_frames, global_step=step, fps=60)  # 4x speed w frameskip 4
-                writer.add_scalar(f'eval_episode_x_avg/{env_state}', np.mean(eval_dict['x'][env_state]), step)
-                writer.add_scalar(f'eval_episode_%_avg/{env_state}', np.mean(eval_dict['%'][env_state]), step)
-                writer.add_scalar(f'eval_episode_r_avg/{env_state}', np.mean(eval_dict['r'][env_state]), step)
+                writer.add_video(env_state[1], vid_frames, global_step=step, fps=60)  # 4x speed w frameskip 4
+                writer.add_scalar(f'eval_episode_x_avg/{env_state[1]}', np.mean(eval_dict['x'][env_state]), step)
+                writer.add_scalar(f'eval_episode_%_avg/{env_state[1]}', np.mean(eval_dict['%'][env_state]), step)
+                writer.add_scalar(f'eval_episode_r_avg/{env_state[1]}', np.mean(eval_dict['r'][env_state]), step)
                 print(f"    wrote video to tensorboard")
                 
 
@@ -128,9 +129,9 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                 eval_dict['x'][env_state].append(info[0]['max_x'])
                 eval_dict['%'][env_state].append(info[0]['max_x']/info[0]['lvl_max_x'] * 100)
 
-                writer.add_scalar(f'eval_episode_x/{env_state}', eval_dict['x'][env_state][-1], t)
-                writer.add_scalar(f'eval_episode_%/{env_state}', eval_dict['%'][env_state][-1], t)
-                writer.add_scalar(f'eval_episode_r/{env_state}', eval_dict['r'][env_state][-1], t)
+                writer.add_scalar(f'eval_episode_x/{env_state[1]}', eval_dict['x'][env_state][-1], step+t)
+                writer.add_scalar(f'eval_episode_%/{env_state[1]}', eval_dict['%'][env_state][-1], step+t)
+                writer.add_scalar(f'eval_episode_r/{env_state[1]}', eval_dict['r'][env_state][-1], step+t)
                 obs = env.reset()
 
             t += 1
@@ -146,11 +147,11 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             eval_dict['x'][env_state].append(last_info[0]['max_x'])
             eval_dict['%'][env_state].append(last_info[0]['max_x']/info[0]['lvl_max_x'] * 100)
             
-            writer.add_scalar(f'eval_episode_x/{env_state}', eval_dict['x'][env_state][-1], t)
-            writer.add_scalar(f'eval_episode_%/{env_state}', eval_dict['%'][env_state][-1], t)
-            writer.add_scalar(f'eval_episode_r/{env_state}', eval_dict['r'][env_state][-1], t)
+            writer.add_scalar(f'eval_episode_x/{env_state[1]}', eval_dict['x'][env_state][-1], step+t)
+            writer.add_scalar(f'eval_episode_%/{env_state[1]}', eval_dict['%'][env_state][-1], step+t)
+            writer.add_scalar(f'eval_episode_r/{env_state[1]}', eval_dict['r'][env_state][-1], step+t)
 
-        print(f"    generated eval data for {env_state}: {time.time()-start:.1f}s")
+        print(f"    generated eval data for {env_state[1]}: {time.time()-start:.1f}s")
 
     # compute evaluation metric
     score = np.mean([np.mean(eval_dict['r'][env_state]) for env_state in env_states])

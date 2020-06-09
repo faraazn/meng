@@ -28,11 +28,6 @@ from evaluation import evaluate
 
 from torch.utils.tensorboard import SummaryWriter
 
-ID_2_ZONE = {
-    0: 'GreenHillZone', 1: 'MarbleZone', 2: 'SpringYardZone', 
-    3: 'LabyrinthZone', 4: 'StarLightZone', 5: 'ScrapBrainZone'
-}
-
 
 def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, writer, writer_name, init_model=None):
     envs = make_vec_envs(train_states, args.seed, args.num_processes,
@@ -46,8 +41,8 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         print(f"  [load] Loaded model {model_name} at step {env_step}")
     else:
         obs_space = envs.observation_space
-        obs_process = {'video': 'pix_norm', 'audio': 'mel_s'}
-        obs_module = {'video': 'video-large', 'audio': 'audio-small'}
+        obs_process = {'video': 'grayscale'}#, 'audio': 'mel_s'}
+        obs_module = {'video': 'video-large'}#, 'audio': 'audio-small'}
         assert set(obs_module.keys()).issubset(set(obs_space.spaces.keys())), "Observation modules must be subset of spaces."
         actor_critic = Policy(
             obs_space,
@@ -95,8 +90,12 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
 
     obs = envs.reset()
     actor_critic.eval()
-    writer.add_graph(actor_critic, obs)
+    try:
+        writer.add_graph(actor_critic, obs)
+    except ValueError:
+        print("Unable to write model graph to tensorboard.")
     actor_critic.train()
+    
     for k in rollouts.obs.keys():
         rollouts.obs[k][0].copy_(obs[k][0])
     rollouts.to(device)
@@ -125,7 +124,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             obs, reward, dones, infos = envs.step(action)
             
             for done, info in zip(dones, infos):
-                env_state = info['env_state']
+                env_state = info['env_state'][1]
                 if done:
                     writer.add_scalar(f'train_episode_x/{env_state}', info['max_x'], env_step)
                     writer.add_scalar(f'train_episode_%/{env_state}', info['max_x']/info['lvl_max_x']*100, env_step)

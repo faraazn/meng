@@ -71,3 +71,39 @@ class ProcessRGBVideo(nn.Module):
             x = x.squeeze(2)  # if depth 1, [batch, channels, height, width]
         # x shape [batch, channels, height, width] or [batch, channels, depth, height, width]
         return x / 256
+
+
+class ProcessGrayscaleVideo(nn.Module):
+    """
+    Expects as input: [batch, height, width, channels] or [b, memory (or frameskip), h, w, c], or [b, m, f, h, w, c]
+    Output: [batch, depth, height, width]
+    """
+    def __init__(self, x_shape):
+        super(ProcessGrayscaleVideo, self).__init__()
+        self.x_shape = [-1] + list(x_shape)  # x_shape doesnt include batch size
+        assert len(x_shape) in [4, 5, 6]
+
+        # permute last 3 dims [height, width, channels] to [channels, height, width]
+        self.p_dims = list(range(len(self.x_shape)))
+        self.p_dims = self.p_dims[:-3] + [self.p_dims[-1]] + self.p_dims[-3:-1]
+
+        if len(self.x_shape) == 6:
+            depth = self.x_shape[1] * self.x_shape[2]
+        elif len(self.x_shape) == 5:
+            depth = self.x_shape[1]
+        elif len(self.x_shape) == 4:
+            depth = 1
+        self.output_shape = [self.x_shape[0], depth, self.x_shape[-3], self.x_shape[-2]]
+
+    def forward(self, x):
+        x = x.permute(self.p_dims)
+        if len(self.x_shape) == 6:
+            # x shape [batch, memory, frameskip, channels, height, width]
+            x = torch.flatten(x, start_dim=1, end_dim=2)  # [batch, depth, channels, height, width]
+        elif len(self.x_shape) == 4:
+            # x shape [batch, channels, height, width]
+            x = x.unsqueeze(1)  # [batch, depth, channels, height, width]
+        # x shape [batch, depth, channels, height, width]
+        x = 0.2125 * x[:,:,0,:,:] + 0.7154 * x[:,:,1,:,:] + 0.0721 * x[:,:,2,:,:]  # [batch, depth, height, width]
+        # x shape [batch, depth, height, width]
+        return x / 256

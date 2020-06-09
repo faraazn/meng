@@ -6,15 +6,7 @@ import random
 import librosa
 import torch
 import collections
-
-ZONE_ACT_2_LVL_MAX_X = {
-    "GreenHillZone.Act1":  9568, "GreenHillZone.Act2":  8032,  "GreenHillZone.Act3":  10538,
-    "MarbleZone.Act1":     6240, "MarbleZone.Act2":     6240,  "MarbleZone.Act3":     5920,
-    "SpringYardZone.Act1": 9056, "SpringYardZone.Act2": 10592, "SpringYardZone.Act3": 11139,
-    "LabyrinthZone.Act1":  6736, "LabyrinthZone.Act2":  4432,  "LabyrinthZone.Act3":  7364,
-    "StarLightZone.Act1":  8288, "StarLightZone.Act2":  8288,  "StarLightZone.Act3":  8008,
-    "ScrapBrainZone.Act1": 8800, "ScrapBrainZone.Act2": 7904
-}
+from constants import ZONE_ACT_2_LVL_MAX_X
 
 class SonicJointEnv(gym.Env):
     """
@@ -23,19 +15,19 @@ class SonicJointEnv(gym.Env):
     This can be used for joint-training.
     """
 
-    def __init__(self, env_states):
+    def __init__(self, game_env_states):
         """
         Create a joint environment.
         Args:
-          env_states: names of retro game states to use.
+          game_env_states: tuples of retro game states to use.
         """
-        self.env_states = env_states
+        self.game_env_states = game_env_states
         self.env = None
         self.em = None
         self.env_idx = 0
         
         env = retro.make(
-            game='SonicTheHedgehog-Genesis', state=self.env_states[0])
+            game=self.game_env_states[0][0], state=self.game_env_states[0][1])
         self.action_space = env.action_space
         self.observation_space = gym.spaces.Dict({
             # easier to work with float32 but faster if we only specify in obs space and cast with cuda
@@ -47,10 +39,10 @@ class SonicJointEnv(gym.Env):
         if self.env is not None:
             self.em = None
             self.env.close()
-        self.env_idx = random.randrange(len(self.env_states))
-        env_state = self.env_states[self.env_idx]
+        self.env_idx = random.randrange(len(self.game_env_states))
+        game_env_state = self.game_env_states[self.env_idx]
         self.env = retro.make(
-            game='SonicTheHedgehog-Genesis', state=env_state)
+            game=game_env_state[0], state=game_env_state[1])
         self.em = self.env.em
 
         obs = {'video': self.env.reset(**kwargs)}
@@ -60,9 +52,9 @@ class SonicJointEnv(gym.Env):
         obs, rew, done, info = self.env.step(action)
         obs = {'video': obs}
         info['env_idx'] = self.env_idx
-        env_state = self.env_states[self.env_idx]
-        info['env_state'] = env_state
-        info['lvl_max_x'] = ZONE_ACT_2_LVL_MAX_X[env_state]
+        game_env_state = self.game_env_states[self.env_idx]
+        info['env_state'] = game_env_state
+        info['lvl_max_x'] = ZONE_ACT_2_LVL_MAX_X[game_env_state[1]]
         return obs, rew, done, info
 
     def render(self, mode='human'):

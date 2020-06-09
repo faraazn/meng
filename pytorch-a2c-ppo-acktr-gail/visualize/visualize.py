@@ -56,6 +56,8 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, value, ac
             obs_im = Image.fromarray(obs_im_array, 'RGB')
         elif obs_im_array.shape[2] == 1:
             obs_im = Image.fromarray(obs_im_array[:,:,0], 'P')
+        elif obs_im_array.shape[2] == 4:
+            obs_im = Image.fromarray(obs_im_array, 'RGBA')
         else:
             raise ValueError
         #aud_im = Image.fromarray(np.flip(obs_audio_mels[0][0], axis=0), 'L')

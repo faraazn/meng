@@ -20,14 +20,14 @@ from .core_wrapper import ObservationWrapper
 def make_env(env_states, seed, rank, allow_early_resets, mode):
     def _thunk():
         env = SonicJointEnv(env_states)
-        env = EnvAudio(env)
+        #env = EnvAudio(env)
         env = SonicDiscretizer(env)
         env = AllowBacktracking(env)
         env = SonicMaxXSumRInfo(env)
         if mode == 'train':
             env = RewardScaler(env, scale=0.005)
-        env = StochasticFrameSkip(env, 4, 0.25, {'video': False, 'audio': True})
-        env = ObsMemoryBuffer(env, {'video': 1, 'audio': 12})
+        env = StochasticFrameSkip(env, 4, 0.25, {'video': False})#, 'audio': False})
+        env = ObsMemoryBuffer(env, {'video': 4})#, 'audio': 1})
         env = TimeLimit(env, max_episode_steps=4500)
 
         env.seed(seed + rank)
