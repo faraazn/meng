@@ -3,7 +3,7 @@ SONIC1 = 'SonicTheHedgehog-Genesis'
 SONIC2 = 'SonicTheHedgehog2-Genesis'
 SONIC3 = 'SonicAndKnuckles3-Genesis'
 ALL_STATES = (
-    #SonicTheHedgehog-Genesis
+    #SonicTheHedgehog-Genesis, 17 levels
     (SONIC1, 'GreenHillZone.Act1'), (SONIC1, 'GreenHillZone.Act2'), (SONIC1, 'GreenHillZone.Act3'),
     (SONIC1, 'MarbleZone.Act1'), (SONIC1, 'MarbleZone.Act2'), (SONIC1, 'MarbleZone.Act3'),    
     (SONIC1, 'SpringYardZone.Act1'), (SONIC1, 'SpringYardZone.Act2'), (SONIC1, 'SpringYardZone.Act3'), 
@@ -11,7 +11,7 @@ ALL_STATES = (
     (SONIC1, 'StarLightZone.Act1'), (SONIC1, 'StarLightZone.Act2'), (SONIC1, 'StarLightZone.Act3'),
     (SONIC1, 'ScrapBrainZone.Act1'), (SONIC1, 'ScrapBrainZone.Act2'), #(SONIC1, 'ScrapBrainZone.Act3')
     
-    # SonicTheHedgehog2-Genesis
+    # SonicTheHedgehog2-Genesis, 18 levels
     (SONIC2, 'EmeraldHillZone.Act1'), (SONIC2, 'EmeraldHillZone.Act2'),
     (SONIC2, 'ChemicalPlantZone.Act1'), (SONIC2, 'ChemicalPlantZone.Act2'),
     (SONIC2, 'AquaticRuinZone.Act1'), (SONIC2, 'AquaticRuinZone.Act2'),
@@ -20,9 +20,9 @@ ALL_STATES = (
     (SONIC2, 'MysticCaveZone.Act1'), (SONIC2, 'MysticCaveZone.Act2'),
     (SONIC2, 'OilOceanZone.Act1'), (SONIC2, 'OilOceanZone.Act2'),
     (SONIC2, 'MetropolisZone.Act1'), (SONIC2, 'MetropolisZone.Act2'), (SONIC2, 'MetropolisZone.Act3'),
-    (SONIC2, 'WingFortressZone.Act1'),
+    (SONIC2, 'WingFortressZone'),
 
-    # SonicAndKnuckles3-Genesis
+    # SonicAndKnuckles3-Genesis, 23 levels
     (SONIC3, 'AngelIslandZone.Act1'), (SONIC3, 'AngelIslandZone.Act2'),
     (SONIC3, 'HydrocityZone.Act1'), (SONIC3, 'HydrocityZone.Act2'),
     (SONIC3, 'MarbleGardenZone.Act1'), (SONIC3, 'MarbleGardenZone.Act2'),
@@ -55,7 +55,7 @@ TRAIN_STATES = (
     (SONIC2, 'MysticCaveZone.Act1'), (SONIC2, 'MysticCaveZone.Act2'),
     (SONIC2, 'OilOceanZone.Act1'), (SONIC2, 'OilOceanZone.Act2'),
     (SONIC2, 'MetropolisZone.Act1'), (SONIC2, 'MetropolisZone.Act2'),
-    (SONIC2, 'WingFortressZone.Act1'),
+    (SONIC2, 'WingFortressZone'),
 
     # SonicAndKnuckles3-Genesis
     (SONIC3, 'AngelIslandZone.Act1'),
@@ -100,7 +100,7 @@ ZONE_ACT_2_LVL_MAX_X = {
     'MysticCaveZone.Act1': 9296, 'MysticCaveZone.Act2': 8608,
     'OilOceanZone.Act1': 12352, 'OilOceanZone.Act2': 10326,
     'MetropolisZone.Act1': 8960, 'MetropolisZone.Act2': 8000, 'MetropolisZone.Act3': 10671,
-    'WingFortressZone.Act1': 10713,
+    'WingFortressZone': 10713,
 
     # SonicAndKnuckles3-Genesis
     'AngelIslandZone.Act1': 12416 + 4169, 'AngelIslandZone.Act2': 18544,

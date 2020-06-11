@@ -13,7 +13,7 @@ from visualize.visualize import gen_eval_vid_frame, gen_eval_vid_frame_small
 def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, vid_save_dir=None):
     # don't write videos that are too long
     MAX_WRITER = 450  # 30 sec with frame skip 4
-    MAX_VID_SAVE = 1800  # 2 min with frame skip 4
+    MAX_VID_SAVE = 1350  # 90 sec with frame skip 4
     assert eval_t > 0
 
     actor_critic.eval()
@@ -69,7 +69,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                 value, action, log_probs, recurrent_hidden_states, logits = actor_critic.act(
                     obs, recurrent_hidden_states, masks, deterministic=True)
                 
-                if vid_save_dir and t < MAX_VID_SAVE:
+                if vid_save_dir and t < min(MAX_VID_SAVE, eval_t - 1):
                     x = info[0]['x'] if info else 0
                     max_x = info[0]['max_x'] if info else 0
                     pct = info[0]['max_x']/info[0]['lvl_max_x']*100 if info else 0
@@ -88,7 +88,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                         # TODO: need to differentiate between mem and frameskip, mem needs to be removed
                         aud_frame = np.int16(obs['audio'].detach().cpu().numpy()[0][-1])
                         aud_record.writeframesraw(aud_frame)
-                if vid_save_dir and (t == MAX_VID_SAVE or t == eval_t - 1):
+                elif vid_save_dir and t == min(MAX_VID_SAVE, eval_t - 1):
                     vid_record.release()
 
                     if 'audio' in obs.keys():
@@ -108,18 +108,13 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             
             masks.fill_(0.0 if done else 1.0)
 
-            if writer and t < MAX_WRITER:
+            if writer and t < min(MAX_WRITER, eval_t - 1):
                 #vid_frame = gen_eval_vid_frame_small(actor_critic, obs)
-                print(f"vid_frame {vid_frame.shape}, {vid_frame.min()}, {vid_frame.max()}")
                 vid_frames.append(np.expand_dims(vid_frame.transpose((2,0,1)), axis=0))
-            if writer and (t == MAX_WRITER or t == eval_t - 1):
+            elif writer and t == min(MAX_WRITER, eval_t - 1):
                 vid_frames = np.expand_dims(np.concatenate(vid_frames), axis=0)
                 writer.add_video(env_state[1], vid_frames, global_step=step, fps=60)  # 4x speed w frameskip 4
-                writer.add_scalar(f'eval_episode_x_avg/{env_state[1]}', np.mean(eval_dict['x'][env_state]), step)
-                writer.add_scalar(f'eval_episode_%_avg/{env_state[1]}', np.mean(eval_dict['%'][env_state]), step)
-                writer.add_scalar(f'eval_episode_r_avg/{env_state[1]}', np.mean(eval_dict['r'][env_state]), step)
                 print(f"    wrote video to tensorboard")
-                
 
             if done[0]:
                 r = ep_reward[0].detach().cpu().item()
@@ -150,6 +145,10 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
             writer.add_scalar(f'eval_episode_x/{env_state[1]}', eval_dict['x'][env_state][-1], step+t)
             writer.add_scalar(f'eval_episode_%/{env_state[1]}', eval_dict['%'][env_state][-1], step+t)
             writer.add_scalar(f'eval_episode_r/{env_state[1]}', eval_dict['r'][env_state][-1], step+t)
+        
+        writer.add_scalar(f'eval_episode_x_avg/{env_state[1]}', np.mean(eval_dict['x'][env_state]), step)
+        writer.add_scalar(f'eval_episode_%_avg/{env_state[1]}', np.mean(eval_dict['%'][env_state]), step)
+        writer.add_scalar(f'eval_episode_r_avg/{env_state[1]}', np.mean(eval_dict['r'][env_state]), step)
 
         print(f"    generated eval data for {env_state[1]}: {time.time()-start:.1f}s")
 

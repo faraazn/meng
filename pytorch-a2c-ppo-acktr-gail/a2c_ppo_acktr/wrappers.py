@@ -173,29 +173,37 @@ class StochasticFrameSkip(Wrapper):
         self.n = n
         self.stickprob = stickprob
         self.keep_frames = keep_frames
+        self.no_keep_frames = True
+        for obs_name in keep_frames.keys():
+            if keep_frames[obs_name] == True:
+                self.no_keep_frames = False
         self.cur_ac = None
         self.rng = np.random.RandomState()
         self.supports_want_render = hasattr(env, "supports_want_render")
-        # expand observation space
-        self.final_obs = {}
-        for obs_name in self.observation_space.spaces.keys():
-            cur_obs_space = self.observation_space.spaces[obs_name]
-            assert type(cur_obs_space) == gym.spaces.Box
-            low = np.unique(cur_obs_space.low)
-            high = np.unique(cur_obs_space.high)
-            assert len(low) == 1 and len(high) == 1
-            new_space_n = self.n if self.keep_frames[obs_name] else 1
-            new_space_shape = [new_space_n]+list(cur_obs_space.shape)
-            self.observation_space.spaces[obs_name] = gym.spaces.Box(
-                low[0], high[0], new_space_shape, cur_obs_space.dtype)
-            self.final_obs[obs_name] = np.zeros(new_space_shape)
+        if not self.no_keep_frames:
+            # expand observation space
+            self.final_obs = {}
+            for obs_name in self.observation_space.spaces.keys():
+                cur_obs_space = self.observation_space.spaces[obs_name]
+                assert type(cur_obs_space) == gym.spaces.Box
+                low = np.unique(cur_obs_space.low)
+                high = np.unique(cur_obs_space.high)
+                assert len(low) == 1 and len(high) == 1
+                new_space_n = self.n if self.keep_frames[obs_name] else 1
+                new_space_shape = [new_space_n]+list(cur_obs_space.shape)
+                self.observation_space.spaces[obs_name] = gym.spaces.Box(
+                    low[0], high[0], new_space_shape, cur_obs_space.dtype)
+                self.final_obs[obs_name] = np.zeros(new_space_shape)
 
     def reset(self, **kwargs):
         self.cur_ac = None
-        final_obs = self.final_obs.copy()
         obs = self.env.reset(**kwargs)
-        for obs_name in obs.keys():
-            final_obs[obs_name][-1] = obs[obs_name]
+        if self.no_keep_frames:
+            final_obs = obs
+        else:
+            final_obs = self.final_obs.copy()
+            for obs_name in obs.keys():
+                final_obs[obs_name][-1] = obs[obs_name]
         return final_obs
 
     def step(self, ac):
@@ -209,19 +217,26 @@ class StochasticFrameSkip(Wrapper):
             self.cur_ac = ac
         obs, rew, done, info = self.env.step(self.cur_ac)
         total_rew += rew
-        # initialize final obs
-        final_obs = self.final_obs.copy()
-        for obs_name in obs.keys():
-            final_obs[obs_name][0] = obs[obs_name]
+        assert self.no_keep_frames
+        if self.no_keep_frames:
+            final_obs = obs
+        else:
+            # initialize final obs
+            final_obs = self.final_obs.copy()
+            for obs_name in obs.keys():
+                final_obs[obs_name][0] = obs[obs_name]
 
         self.cur_ac = ac
         for i in range(1, self.n):
             # second or more substep, use the given action for sure
             obs, rew, done, info = self.env.step(self.cur_ac)
             total_rew += rew
-            for obs_name in obs.keys():
-                new_obs_i = i if self.keep_frames[obs_name] else 0
-                final_obs[obs_name][new_obs_i] = obs[obs_name]
+            if self.no_keep_frames:
+                final_obs = obs
+            else:
+                for obs_name in obs.keys():
+                    new_obs_i = i if self.keep_frames[obs_name] else 0
+                    final_obs[obs_name][new_obs_i] = obs[obs_name]
             if done:
                 break
         return final_obs, total_rew, done, info

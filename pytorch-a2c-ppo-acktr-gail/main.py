@@ -53,7 +53,7 @@ def main():
     run_name = str(datetime.now())[5:].replace(' ', '_').replace(':', '-').split('.')[0]
 
     solo_env_steps = 1e6
-    eval_env_steps = 1e4
+    eval_env_steps = 1e5
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo/")
     for i, env_state in enumerate(ALL_STATES):
         print(f"[train] {i}/{len(ALL_STATES)}: Starting {env_state[0]} {env_state[1]} ppo training")
@@ -63,7 +63,7 @@ def main():
     writer.close()
     return
 
-    joint_env_steps = 3e7
+    joint_env_steps = 5e7
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint/")
     print(f"\n[train] Starting ppo-joint training")
     init_model = get_newest_ckpt(os.path.join(f"{args.load}", "ppo-joint/ckpts/"))
