@@ -45,10 +45,20 @@ def make_vec_envs(env_states,
                   mode,
                   num_frame_stack=None):
     assert mode in ['train', 'eval']
-    envs = [
-        make_env(env_states, seed, i, allow_early_resets, mode)
-        for i in range(num_processes)
-    ]
+    if num_processes == len(env_states):
+        # one state per process
+        print(f"creating one env state per process {num_processes} {len(env_states)}")
+        envs = [
+            make_env([env_states[i]], seed, i, allow_early_resets, mode)
+            for i in range(num_processes)
+        ]
+    else:
+        # random sample new state on done
+        print(f"creating normal random joint env {num_processes} {len(env_states)}")
+        envs = [
+            make_env(env_states, seed, i, allow_early_resets, mode)
+            for i in range(num_processes)
+        ]
 
     if len(envs) > 1:
         envs = ShmemVecEnv(envs, context='forkserver')

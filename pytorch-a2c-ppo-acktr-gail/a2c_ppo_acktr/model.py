@@ -225,8 +225,8 @@ class NNBase2(NNBase):
                 module = nn.Sequential(
                     init_(nn.Conv2d(p_process.output_shape[1], 16, 8, stride=4)), nn.ReLU(),  # [16, 55, 79]
                     init_(nn.Conv2d(16, 32, 4, stride=2)), nn.ReLU(),  # [32, 26, 38]
-                    init_(nn.Linear(32*np.prod(conv_dim), 512)), nn.ReLU())
-                self._hidden_size += 512
+                    Flatten(), init_(nn.Linear(32*np.prod(conv_dim), 256)), nn.ReLU())
+                self._hidden_size += 256
             elif obs_module[obs_name] == 'video-large':
                 # OpenAI Baselines large - 28,387,328 parameters w video shape [b, 3, 224, 320]
                 assert len(p_process.output_shape) == 4  # [b, 3, h, w]

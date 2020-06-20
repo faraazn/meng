@@ -21,11 +21,12 @@ class SonicJointEnv(gym.Env):
         Args:
           game_env_states: tuples of retro game states to use.
         """
+        assert game_env_states
         self.game_env_states = game_env_states
         self.env = None
         self.em = None
         self.env_idx = 0
-        
+
         env = retro.make(
             game=self.game_env_states[0][0], state=self.game_env_states[0][1])
         self.action_space = env.action_space
@@ -33,18 +34,23 @@ class SonicJointEnv(gym.Env):
             # easier to work with float32 but faster if we only specify in obs space and cast with cuda
             'video': gym.spaces.Box(np.float32(0), np.float32(1), shape=(224, 320, 3), dtype=np.float32)
         })
-        env.close()
+        if len(self.game_env_states) == 1:
+            self.env = env
+        else:
+            env.close()
 
     def reset(self, **kwargs):
-        if self.env is not None:
-            self.em = None
-            self.env.close()
-        self.env_idx = random.randrange(len(self.game_env_states))
-        game_env_state = self.game_env_states[self.env_idx]
-        self.env = retro.make(
-            game=game_env_state[0], state=game_env_state[1])
-        self.em = self.env.em
-
+        if len(self.game_env_states) > 1:
+            # re-make the env by randomly sampling if there are >1 states provided
+            if self.env is not None:
+                self.em = None
+                self.env.close()
+            self.env_idx = random.randrange(len(self.game_env_states))
+            game_env_state = self.game_env_states[self.env_idx]
+            self.env = retro.make(
+                game=game_env_state[0], state=game_env_state[1])
+            self.em = self.env.em
+            
         obs = {'video': self.env.reset(**kwargs)}
         return obs
 
