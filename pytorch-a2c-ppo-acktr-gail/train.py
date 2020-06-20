@@ -42,7 +42,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
     else:
         obs_space = envs.observation_space
         obs_process = {'video': 'grayscale'}#, 'audio': 'mel_s'}
-        obs_module = {'video': 'video-large'}#, 'audio': 'audio-small'}
+        obs_module = {'video': 'video-medium'}#, 'audio': 'audio-small'}
         assert set(obs_module.keys()).issubset(set(obs_space.spaces.keys())), "Observation modules must be subset of spaces."
         actor_critic = Policy(
             obs_space,
@@ -53,6 +53,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         env_step = 0
         episode_num = 0
     actor_critic.to(device) 
+    print(actor_critic)
 
     run_name = run_dir.replace('/', '_')
     vid_save_dir = f"{run_dir}/videos/"
@@ -152,38 +153,39 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
 
         env_step += batch_size
         
-        # write training metrics for each batch, usually takes 0.003s
-        fps = batch_size / (time.time()-s)
-        writer.add_scalar(f'fps/{writer_name}', fps, env_step)
-        writer.add_scalar(f'value_loss/{writer_name}', value_loss / batch_size, env_step)
-        writer.add_scalar(f'action_loss/{writer_name}', action_loss / batch_size, env_step)
-        writer.add_scalar(f'dist_entropy/{writer_name}', dist_entropy / batch_size, env_step)
-        writer.add_scalar(f'cpu_usage/{writer_name}', psutil.cpu_percent(), env_step)
-        writer.add_scalar(f'cpu_mem/{writer_name}', psutil.virtual_memory()._asdict()['percent'], env_step)
-        res = nvidia_smi.nvmlDeviceGetUtilizationRates(handle)
-        writer.add_scalar(f'gpu_usage/{writer_name}', res.gpu, env_step)
-        writer.add_scalar(f'gpu_mem/{writer_name}', res.memory, env_step)
-        total_norm = 0
-        for p in list(filter(lambda p: p.grad is not None, actor_critic.parameters())):
-            param_norm = p.grad.data.norm(2)
-            total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** (1. / 2)
-        writer.add_scalar(f'grad_norm/{writer_name}', total_norm, env_step)
-        for obs_name in obs_module.keys():
+        prev_env_step = max(0, env_step + 1 - batch_size)
+        # write training metrics for this batch, usually takes 0.003s
+        if (env_step+1)//2.5e4 > prev_env_step//2.5e4:
+            fps = batch_size / (time.time()-s)
+            writer.add_scalar(f'fps/{writer_name}', fps, env_step)
+            writer.add_scalar(f'value_loss/{writer_name}', value_loss / batch_size, env_step)
+            writer.add_scalar(f'action_loss/{writer_name}', action_loss / batch_size, env_step)
+            writer.add_scalar(f'dist_entropy/{writer_name}', dist_entropy / batch_size, env_step)
+            writer.add_scalar(f'cpu_usage/{writer_name}', psutil.cpu_percent(), env_step)
+            writer.add_scalar(f'cpu_mem/{writer_name}', psutil.virtual_memory()._asdict()['percent'], env_step)
+            res = nvidia_smi.nvmlDeviceGetUtilizationRates(handle)
+            writer.add_scalar(f'gpu_usage/{writer_name}', res.gpu, env_step)
+            writer.add_scalar(f'gpu_mem/{writer_name}', res.memory, env_step)
             total_norm = 0
-            if obs_name == 'video':
-                md = actor_critic.base.video_module
-            elif obs_name == 'audio':
-                md = actor_critic.base.audio_module
-            else:
-                raise NotImplementedError
-            for p in list(filter(lambda p: p.grad is not None, md.parameters())):
+            for p in list(filter(lambda p: p.grad is not None, actor_critic.parameters())):
                 param_norm = p.grad.data.norm(2)
                 total_norm += param_norm.item() ** 2
             total_norm = total_norm ** (1. / 2)
-            writer.add_scalar(f'grad_norm_{obs_name}/{writer_name}', total_norm, env_step)
+            writer.add_scalar(f'grad_norm/{writer_name}', total_norm, env_step)
+            for obs_name in obs_module.keys():
+                total_norm = 0
+                if obs_name == 'video':
+                    md = actor_critic.base.video_module
+                elif obs_name == 'audio':
+                    md = actor_critic.base.audio_module
+                else:
+                    raise NotImplementedError
+                for p in list(filter(lambda p: p.grad is not None, md.parameters())):
+                    param_norm = p.grad.data.norm(2)
+                    total_norm += param_norm.item() ** 2
+                total_norm = total_norm ** (1. / 2)
+                writer.add_scalar(f'grad_norm_{obs_name}/{writer_name}', total_norm, env_step)
         
-        prev_env_step = max(0, env_step + 1 - batch_size)
         # print log to console
         if (env_step+1)//args.log_interval > prev_env_step//args.log_interval and len(episode_rewards) > 1:
             end = time.time()
@@ -197,9 +199,8 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
                 dist_entropy, value_loss, action_loss))
             start = time.time()
 
-        # save model to ckpt and run evaluation
+        # save model to ckpt
         if ((env_step+1)//args.save_interval > prev_env_step//args.save_interval):
-
             torch.save([
                 actor_critic,
                 env_step,
@@ -208,6 +209,16 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             ], os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt"))
             print(f"  [save] Saved model at step {env_step+1}.")
 
+        # save model to ckpt and run evaluation
+        if ((env_step+1)//args.eval_interval > prev_env_step//args.eval_interval):
+            torch.save([
+                actor_critic,
+                env_step,
+                episode_num,
+                run_name,
+            ], os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt"))
+            print(f"  [save] Saved model at step {env_step+1}.")
+            
             envs.close()
             del envs  # close does not actually get rid of envs, need to del
             actor_critic.eval()

@@ -33,7 +33,7 @@ ALL_STATES = (
     (SONIC3, 'FlyingBatteryZone.Act1'), (SONIC3, 'FlyingBatteryZone.Act2'),
     (SONIC3, 'SandopolisZone.Act1'), (SONIC3, 'SandopolisZone.Act2'),
     (SONIC3, 'LavaReefZone.Act1'), (SONIC3, 'LavaReefZone.Act2'),
-    (SONIC3, 'HiddenPalaceZone.Act1'), 
+    (SONIC3, 'HiddenPalaceZone'), 
     (SONIC3, 'DeathEggZone.Act1'), (SONIC3, 'DeathEggZone.Act2')
 )
 
@@ -51,7 +51,7 @@ TRAIN_STATES = (
     (SONIC2, 'ChemicalPlantZone.Act1'), (SONIC2, 'ChemicalPlantZone.Act2'),
     (SONIC2, 'AquaticRuinZone.Act1'), (SONIC2, 'AquaticRuinZone.Act2'),
     (SONIC2, 'CasinoNightZone.Act1'),
-    (SONIC2, 'HillTopZone.Act1'),
+    (SONIC2, 'HillTopZone.Act1'), (SONIC2, 'HillTopZone.Act2'),
     (SONIC2, 'MysticCaveZone.Act1'), (SONIC2, 'MysticCaveZone.Act2'),
     (SONIC2, 'OilOceanZone.Act1'), (SONIC2, 'OilOceanZone.Act2'),
     (SONIC2, 'MetropolisZone.Act1'), (SONIC2, 'MetropolisZone.Act2'),
@@ -62,13 +62,13 @@ TRAIN_STATES = (
     (SONIC3, 'HydrocityZone.Act2'),
     (SONIC3, 'MarbleGardenZone.Act1'), (SONIC3, 'MarbleGardenZone.Act2'),
     (SONIC3, 'CarnivalNightZone.Act1'), (SONIC3, 'CarnivalNightZone.Act2'),
-    (SONIC3, 'IcecapZone.Act1'), (SONIC3, 'IcecapZone.Act2'),
+    (SONIC3, 'IcecapZone.Act2'),
     (SONIC3, 'LaunchBaseZone.Act1'), (SONIC3, 'LaunchBaseZone.Act2'),
     (SONIC3, 'MushroomHillZone.Act1'), (SONIC3, 'MushroomHillZone.Act2'),
     (SONIC3, 'FlyingBatteryZone.Act1'),
     (SONIC3, 'SandopolisZone.Act1'), (SONIC3, 'SandopolisZone.Act2'),
     (SONIC3, 'LavaReefZone.Act2'),
-    (SONIC3, 'HiddenPalaceZone.Act1'), 
+    (SONIC3, 'HiddenPalaceZone'), 
     (SONIC3, 'DeathEggZone.Act1'), (SONIC3, 'DeathEggZone.Act2')
 )
 
@@ -79,7 +79,8 @@ EVAL_STATES = (
 TEST_STATES = (
     (SONIC1, 'GreenHillZone.Act2'), (SONIC1, 'SpringYardZone.Act1'), (SONIC1, 'StarLightZone.Act3'), (SONIC1, 'ScrapBrainZone.Act1'),
     (SONIC2, 'MetropolisZone.Act3'), (SONIC2, 'HillTopZone.Act2'), (SONIC2, 'CasinoNightZone.Act2'),
-    (SONIC3, 'LavaReefZone.Act1'), (SONIC3, 'FlyingBatteryZone.Act2'), (SONIC3, 'HydrocityZone.Act1'), (SONIC3, 'AngelIslandZone.Act2')
+    (SONIC3, 'LavaReefZone.Act1'), (SONIC3, 'FlyingBatteryZone.Act2'), (SONIC3, 'HydrocityZone.Act1'), (SONIC3, 'AngelIslandZone.Act2'), 
+    (SONIC3, 'IcecapZone.Act1')
 )
 
 ZONE_ACT_2_LVL_MAX_X = {
@@ -113,6 +114,6 @@ ZONE_ACT_2_LVL_MAX_X = {
     'FlyingBatteryZone.Act1': 11741, 'FlyingBatteryZone.Act2': 13229,
     'SandopolisZone.Act1': 16635, 'SandopolisZone.Act2': 20745,
     'LavaReefZone.Act1': 11236, 'LavaReefZone.Act2': 14512,
-    'HiddenPalaceZone.Act1': 4040, 
+    'HiddenPalaceZone': 4040, 
     'DeathEggZone.Act1': 13806, 'DeathEggZone.Act2': 13727
 }

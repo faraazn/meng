@@ -54,16 +54,16 @@ def main():
 
     solo_env_steps = 1e6
     eval_env_steps = 1e5
+    """
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo/")
     for i, env_state in enumerate(ALL_STATES):
-        print(f"[train] {i}/{len(ALL_STATES)}: Starting {env_state[0]} {env_state[1]} ppo training")
+        print(f"[train] {i+1}/{len(ALL_STATES)}: Starting {env_state[0]} {env_state[1]} ppo training")
         init_model = get_newest_ckpt(os.path.join(f"{args.load}", f"ppo/{env_state[1]}/ckpts/"))
         model, eval_score, _ = train(
             [env_state], f"runs/{run_name}/ppo/{env_state[1]}", args, solo_env_steps, eval_env_steps, device, writer, env_state[1], init_model)
     writer.close()
-    return
-
-    joint_env_steps = 5e7
+    """
+    joint_env_steps = 3e7
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint/")
     print(f"\n[train] Starting ppo-joint training")
     init_model = get_newest_ckpt(os.path.join(f"{args.load}", "ppo-joint/ckpts/"))

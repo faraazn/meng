@@ -48,7 +48,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                 vid_filepath = "/tmp/temp.webm"
             
             vid_frame = gen_eval_vid_frame(
-                actor_critic, env_state[1], 0, 0, 0, 0, 0, 0, 0, None, obs, {'video': 5})#, 'audio': 5})
+                actor_critic, env_state[1], 0, 0, 0, 0, 0, 0, 0, None, obs, {'video': 3})#, 'audio': 5})
             vid_height = vid_frame.shape[0]
             vid_width = vid_frame.shape[1]
             fps = 60/4  # record at 1x speed with frame skip 4
@@ -76,7 +76,7 @@ def evaluate(env_states, seed, device, actor_critic, eval_t, step, writer=None, 
                     rew = info[0]['sum_r'] if info else 0
                     v = action.item()
                     a = action.item()
-                    tgt_layers = {'video': 5}#, 'audio': 5}
+                    tgt_layers = {'video': 3}#, 'audio': 5}
                     vid_frame = gen_eval_vid_frame(
                         actor_critic, env_state[1], x, max_x, pct, rew, t, v, a, logits, obs, tgt_layers)
                     #vid_frame = vid_frame[:,:,::-1]  # format 'BGR' for cv2 writing
