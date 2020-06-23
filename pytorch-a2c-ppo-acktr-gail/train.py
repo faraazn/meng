@@ -7,9 +7,9 @@ import glob
 from datetime import datetime
 from collections import deque
 import psutil
-import nvidia_smi
-nvidia_smi.nvmlInit()
-handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
+#import nvidia_smi
+#nvidia_smi.nvmlInit()
+#handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
 
 import gym
 import numpy as np
@@ -21,7 +21,7 @@ import torch.optim as optim
 from a2c_ppo_acktr import algo, utils
 from a2c_ppo_acktr.algo import gail
 from a2c_ppo_acktr.envs import make_vec_envs
-from a2c_ppo_acktr.model import Policy
+from a2c_ppo_acktr.model import Policy, MyDataParallel
 from a2c_ppo_acktr.storage import RolloutStorage
 
 from evaluation import evaluate
@@ -52,8 +52,12 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             base_kwargs={'recurrent': args.recurrent_policy})
         env_step = 0
         episode_num = 0
-    actor_critic.to(device) 
+        print(f"{torch.cuda.device_count()} gpus")
+        actor_critic = MyDataParallel(actor_critic)
+        print(actor_critic.device_ids)
+    actor_critic.to(device)
     print(actor_critic)
+    print(actor_critic.device_ids)
 
     run_name = run_dir.replace('/', '_')
     vid_save_dir = f"{run_dir}/videos/"
@@ -91,10 +95,12 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
 
     obs = envs.reset()
     actor_critic.eval()
+    """
     try:
         writer.add_graph(actor_critic, obs)
     except ValueError:
         print("Unable to write model graph to tensorboard.")
+    """
     actor_critic.train()
     
     for k in rollouts.obs.keys():
@@ -113,14 +119,12 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             utils.update_linear_schedule(
                 agent.optimizer, j, num_updates,
                 agent.optimizer.lr if args.algo == "acktr" else args.lr)
-        
         for step in range(args.num_steps):
             # Sample actions
             with torch.no_grad():
                 value, action, action_log_prob, recurrent_hidden_states, _ = actor_critic.act(
                     {k: rollouts.obs[k][step] for k in rollouts.obs.keys()},
-                    rollouts.recurrent_hidden_states[step], rollouts.masks[step])                
-
+                    rollouts.recurrent_hidden_states[step], rollouts.masks[step])
             # Observe reward and next obs
             obs, reward, dones, infos = envs.step(action)
             
@@ -152,49 +156,50 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
         rollouts.after_update()
 
         env_step += batch_size
+        fps = batch_size / (time.time()-s)
+        #res = nvidia_smi.nvmlDeviceGetUtilizationRates(handle)
+        #writer.add_scalar(f'gpu_usage/{writer_name}', res.gpu, env_step)
+        #writer.add_scalar(f'gpu_mem/{writer_name}', res.memory, env_step)
+        total_norm = 0
+        for p in list(filter(lambda p: p.grad is not None, actor_critic.parameters())):
+            param_norm = p.grad.data.norm(2)
+            total_norm += param_norm.item() ** 2
+        total_norm = total_norm ** (1. / 2)
+        writer.add_scalar(f'grad_norm/{writer_name}', total_norm, env_step)
+        for obs_name in obs_module.keys():
+            total_norm = 0
+            if obs_name == 'video':
+                md = actor_critic.base.video_module
+            elif obs_name == 'audio':
+                md = actor_critic.base.audio_module
+            else:
+                raise NotImplementedError
+            for p in list(filter(lambda p: p.grad is not None, md.parameters())):
+                param_norm = p.grad.data.norm(2)
+                total_norm += param_norm.item() ** 2
+            total_norm = total_norm ** (1. / 2)
         
         prev_env_step = max(0, env_step + 1 - batch_size)
         # write training metrics for this batch, usually takes 0.003s
-        if (env_step+1)//2.5e4 > prev_env_step//2.5e4:
-            fps = batch_size / (time.time()-s)
+        if (env_step+1)//args.write_interval > prev_env_step//args.write_interval:
             writer.add_scalar(f'fps/{writer_name}', fps, env_step)
             writer.add_scalar(f'value_loss/{writer_name}', value_loss / batch_size, env_step)
             writer.add_scalar(f'action_loss/{writer_name}', action_loss / batch_size, env_step)
             writer.add_scalar(f'dist_entropy/{writer_name}', dist_entropy / batch_size, env_step)
             writer.add_scalar(f'cpu_usage/{writer_name}', psutil.cpu_percent(), env_step)
             writer.add_scalar(f'cpu_mem/{writer_name}', psutil.virtual_memory()._asdict()['percent'], env_step)
-            res = nvidia_smi.nvmlDeviceGetUtilizationRates(handle)
-            writer.add_scalar(f'gpu_usage/{writer_name}', res.gpu, env_step)
-            writer.add_scalar(f'gpu_mem/{writer_name}', res.memory, env_step)
-            total_norm = 0
-            for p in list(filter(lambda p: p.grad is not None, actor_critic.parameters())):
-                param_norm = p.grad.data.norm(2)
-                total_norm += param_norm.item() ** 2
-            total_norm = total_norm ** (1. / 2)
-            writer.add_scalar(f'grad_norm/{writer_name}', total_norm, env_step)
-            for obs_name in obs_module.keys():
-                total_norm = 0
-                if obs_name == 'video':
-                    md = actor_critic.base.video_module
-                elif obs_name == 'audio':
-                    md = actor_critic.base.audio_module
-                else:
-                    raise NotImplementedError
-                for p in list(filter(lambda p: p.grad is not None, md.parameters())):
-                    param_norm = p.grad.data.norm(2)
-                    total_norm += param_norm.item() ** 2
-                total_norm = total_norm ** (1. / 2)
-                writer.add_scalar(f'grad_norm_{obs_name}/{writer_name}', total_norm, env_step)
+            writer.add_scalar(f'grad_norm_{obs_name}/{writer_name}', total_norm, env_step)
         
         # print log to console
-        if (env_step+1)//args.log_interval > prev_env_step//args.log_interval and len(episode_rewards) > 1:
+        if (env_step+1)//args.log_interval > prev_env_step//args.log_interval:
             end = time.time()
             print("  [log] Env step {} of {}: {:.1f}s, {:.1f}fps".format(
                 env_step+1, num_env_steps, end-start, fps))
-            print("    Last {} episodes: mean/med reward {:.1f}/{:.1f}, min/max reward {:.1f}/{:.1f}".format(
-                len(episode_rewards), np.mean(episode_rewards),
-                np.median(episode_rewards), np.min(episode_rewards),
-                np.max(episode_rewards)))
+            if len(episode_rewards) > 0:
+                print("    Last {} episodes: mean/med reward {:.1f}/{:.1f}, min/max reward {:.1f}/{:.1f}".format(
+                    len(episode_rewards), np.mean(episode_rewards),
+                    np.median(episode_rewards), np.min(episode_rewards),
+                    np.max(episode_rewards)))
             print("    dist_entropy {:.5f}, value_loss {:.9f}, action_loss {:.9f}".format(
                 dist_entropy, value_loss, action_loss))
             start = time.time()
