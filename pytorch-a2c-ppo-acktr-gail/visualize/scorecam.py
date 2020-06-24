@@ -21,7 +21,7 @@ class CamExtractor():
         """
         conv_outputs = {}
         all_x = []
-        for obs_name in self.obs_module.keys():
+        for obs_name in processed_obs.keys():
             if obs_name == 'video':
                 module = self.actor_critic.base.video_module
             elif obs_name == 'audio':

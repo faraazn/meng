@@ -185,7 +185,6 @@ class NNBase2(NNBase):
     def __init__(self, obs_space, obs_process, obs_module, recurrent=False, hidden_size=512):
         super(NNBase2, self).__init__(recurrent, hidden_size, hidden_size)
 
-        assert set(obs_process.keys()) == set(obs_module.keys())
         self.obs_space = obs_space
         self.obs_process = obs_process
         self.obs_module = obs_module
@@ -193,7 +192,7 @@ class NNBase2(NNBase):
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
                                constant_(x, 0), nn.init.calculate_gain('relu'))
 
-        for obs_name in sorted(obs_module.keys()):  # order of adding layers matters
+        for obs_name in sorted(obs_space.spaces.keys()):  # order of adding layers matters
             # determine preprocessing
             if obs_process[obs_name] == 'mel_s':
                 p_process = ProcessMelSpectrogram(self.obs_space[obs_name].shape)
@@ -265,7 +264,6 @@ class NNBase2(NNBase):
                 self._hidden_size += 512
             else:
                 raise NotImplementedError
-            print(f"conv output shape {conv_dim}")
 
             if obs_name == 'video':
                 self.video_process = p_process
@@ -280,7 +278,7 @@ class NNBase2(NNBase):
 
     def forward(self, obs, rnn_hxs, masks):
         x = []
-        for obs_name in sorted(self.obs_module.keys()):
+        for obs_name in sorted(obs.keys()):
             if obs_name == 'video':
                 x.append(self.video_module(self.video_process(obs[obs_name])))
             elif obs_name == 'audio':

@@ -22,7 +22,7 @@ def gen_eval_vid_frame_small(actor_critic, obs):
     return vid_process
 
 
-def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, value, action, logits, obs, tgt_layers):
+def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, value, action, logits, obs, viz_layers):
     actor_critic.eval()
     processed_obs = obs.copy()
     for obs_name in sorted(obs.keys()):
@@ -32,7 +32,7 @@ def gen_eval_vid_frame(actor_critic, env_state, x, max_x, pct, rew, t, value, ac
             processed_obs[obs_name] = actor_critic.base.audio_process(obs[obs_name])
         else:
             raise NotImplementedError
-    score_cam = ScoreCam(actor_critic, tgt_layers)
+    score_cam = ScoreCam(actor_critic, viz_layers)
     cams = score_cam.generate_cam(processed_obs, action)
 
     frame_x = 1080#320*3  # this needs to be known max length along x axis to align heatmap etc

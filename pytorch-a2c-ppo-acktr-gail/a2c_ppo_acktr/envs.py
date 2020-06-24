@@ -17,18 +17,19 @@ from .wrappers import SonicJointEnv, TimeLimit, AllowBacktracking, SonicMaxXSumR
 from .core_wrapper import ObservationWrapper
 
 
-def make_env(env_states, seed, rank, allow_early_resets, mode):
+def make_env(env_states, seed, rank, mode, args):
     def _thunk():
         env = SonicJointEnv(env_states)
-        #env = EnvAudio(env)
+        if args.use_audio:
+            env = EnvAudio(env)
         env = SonicDiscretizer(env)
         env = AllowBacktracking(env)
         env = SonicMaxXSumRInfo(env)
         if mode == 'train':
-            env = RewardScaler(env, scale=0.005)
-        env = StochasticFrameSkip(env, 4, 0.25, {'video': False})#, 'audio': False})
-        env = ObsMemoryBuffer(env, {'video': 4})#, 'audio': 1})
-        env = TimeLimit(env, max_episode_steps=4500)
+            env = RewardScaler(env, scale=args.rew_scale)
+        env = StochasticFrameSkip(env, args.fskip_num, args.fskip_prob, args.obs_keep_fskip)
+        env = ObsMemoryBuffer(env, args.obs_mbuf)
+        env = TimeLimit(env, max_episode_steps=args.max_episode_steps)
 
         env.seed(seed + rank)
         return env
@@ -41,22 +42,19 @@ def make_vec_envs(env_states,
                   num_processes,
                   gamma,
                   device,
-                  allow_early_resets,
                   mode,
-                  num_frame_stack=None):
+                  args):
     assert mode in ['train', 'eval']
-    if num_processes == len(env_states):
+    if num_processes % len(env_states) == 0:
         # one state per process
-        print(f"creating one env state per process {num_processes} {len(env_states)}")
         envs = [
-            make_env([env_states[i]], seed, i, allow_early_resets, mode)
+            make_env([env_states[i%len(env_states)]], seed, i, mode, args)
             for i in range(num_processes)
         ]
     else:
         # random sample new state on done
-        print(f"creating normal random joint env {num_processes} {len(env_states)}")
         envs = [
-            make_env(env_states, seed, i, allow_early_resets, mode)
+            make_env(env_states, seed, i, mode, args)
             for i in range(num_processes)
         ]
 

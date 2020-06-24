@@ -179,8 +179,8 @@ class StochasticFrameSkip(Wrapper):
         self.n = n
         self.stickprob = stickprob
         self.keep_frames = keep_frames
-        self.no_keep_frames = True
-        for obs_name in keep_frames.keys():
+        self.no_keep_frames = True  # if this stays True, we can do optimization later
+        for obs_name in self.observation_space.spaces.keys():
             if keep_frames[obs_name] == True:
                 self.no_keep_frames = False
         self.cur_ac = None

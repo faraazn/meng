@@ -21,7 +21,7 @@ import torch.optim as optim
 from a2c_ppo_acktr import algo, utils
 from a2c_ppo_acktr.algo import gail
 from a2c_ppo_acktr.envs import make_vec_envs
-from a2c_ppo_acktr.model import Policy, MyDataParallel
+from a2c_ppo_acktr.model import Policy
 from a2c_ppo_acktr.storage import RolloutStorage
 
 from evaluation import evaluate
@@ -29,35 +29,26 @@ from evaluation import evaluate
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, writer, writer_name, init_model=None):
-    envs = make_vec_envs(train_states, args.seed, args.num_processes,
-                         args.gamma, device, False, 'train')
+def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_name, args, init_model=None):
+    envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, args.device, 'train', args)
 
     if init_model:
-        actor_critic, env_step, episode_num, model_name = init_model
+        actor_critic, env_step, model_name = init_model
         obs_space = actor_critic.obs_space
         obs_process = actor_critic.obs_process
         obs_module = actor_critic.obs_module
         print(f"  [load] Loaded model {model_name} at step {env_step}")
     else:
         obs_space = envs.observation_space
-        obs_process = {'video': 'grayscale'}#, 'audio': 'mel_s'}
-        obs_module = {'video': 'video-medium'}#, 'audio': 'audio-small'}
-        assert set(obs_module.keys()).issubset(set(obs_space.spaces.keys())), "Observation modules must be subset of spaces."
         actor_critic = Policy(
             obs_space,
-            obs_process,
-            obs_module,
+            args.obs_process,
+            args.obs_module,
             envs.action_space,
             base_kwargs={'recurrent': args.recurrent_policy})
         env_step = 0
-        episode_num = 0
-        print(f"{torch.cuda.device_count()} gpus")
-        actor_critic = MyDataParallel(actor_critic)
-        print(actor_critic.device_ids)
-    actor_critic.to(device)
-    print(actor_critic)
-    print(actor_critic.device_ids)
+    actor_critic.to(args.device)
+    #print(actor_critic)
 
     run_name = run_dir.replace('/', '_')
     vid_save_dir = f"{run_dir}/videos/"
@@ -105,7 +96,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
     
     for k in rollouts.obs.keys():
         rollouts.obs[k][0].copy_(obs[k][0])
-    rollouts.to(device)
+    rollouts.to(args.device)
 
     episode_rewards = deque(maxlen=10)
 
@@ -134,7 +125,6 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
                     writer.add_scalar(f'train_episode_x/{env_state}', info['max_x'], env_step)
                     writer.add_scalar(f'train_episode_%/{env_state}', info['max_x']/info['lvl_max_x']*100, env_step)
                     writer.add_scalar(f'train_episode_r/{env_state}', info['sum_r'], env_step)
-                    episode_num += 1
 
             # If done then clean the history of observations.
             masks = torch.FloatTensor(
@@ -166,7 +156,7 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             total_norm += param_norm.item() ** 2
         total_norm = total_norm ** (1. / 2)
         writer.add_scalar(f'grad_norm/{writer_name}', total_norm, env_step)
-        for obs_name in obs_module.keys():
+        for obs_name in args.obs_keys:
             total_norm = 0
             if obs_name == 'video':
                 md = actor_critic.base.video_module
@@ -209,17 +199,15 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             torch.save([
                 actor_critic,
                 env_step,
-                episode_num,
                 run_name,
             ], os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt"))
             print(f"  [save] Saved model at step {env_step+1}.")
 
-        # save model to ckpt and run evaluation
-        if ((env_step+1)//args.eval_interval > prev_env_step//args.eval_interval):
+        # save model to ckpt and run evaluation if eval_interval and not final iteration in training loop
+        if ((env_step+1)//args.eval_interval > prev_env_step//args.eval_interval) and env_step < num_env_steps:
             torch.save([
                 actor_critic,
                 env_step,
-                episode_num,
                 run_name,
             ], os.path.join(ckpt_save_dir, f"{run_name}-{env_step}.pt"))
             print(f"  [save] Saved model at step {env_step+1}.")
@@ -227,12 +215,14 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
             envs.close()
             del envs  # close does not actually get rid of envs, need to del
             actor_critic.eval()
-            eval_score, e_dict = evaluate(train_states, args.seed, device, actor_critic, 10000, env_step, writer, vid_save_dir)
+            eval_score, e_dict = evaluate(
+                train_states, actor_critic, 10000, env_step, writer,
+                vid_save_dir, args.vid_tb_steps, args.vid_file_steps, args.obs_viz_layer, args)
             print(f"  [eval] Evaluation score: {eval_score}")
             writer.add_scalar('eval_score', eval_score, env_step)
 
             actor_critic.train()
-            envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, device, False, 'train')
+            envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, args.device, 'train', args)
             obs = envs.reset()
             # TODO: does this work? do we need to increment env step or something? whydden_states insert at 0
             for k in rollouts.obs.keys():
@@ -243,7 +233,6 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
     torch.save([
         actor_critic,
         env_step,
-        episode_num,
         run_name,
     ], final_model_path)
     print(f"  [save] Final model saved at step {env_step+1} to {final_model_path}")
@@ -251,7 +240,9 @@ def train(train_states, run_dir, args, num_env_steps, eval_env_steps, device, wr
     # final model eval
     envs.close()
     del envs
-    eval_score, eval_dict = evaluate(train_states, args.seed, device, actor_critic, eval_env_steps, env_step, writer, vid_save_dir)
-    print(f"  [eval] Final model evaluation score: {eval_score}")
+    eval_score, eval_dict = evaluate(
+        train_states, actor_critic, eval_env_steps, env_step, writer,
+        vid_save_dir, args.vid_tb_steps, args.vid_file_steps, args.obs_viz_layer, args)
+    print(f"  [eval] Final model evaluation score: {eval_score:.3f}")
 
-    return (actor_critic, env_step, episode_num, run_name), eval_score, eval_dict
+    return (actor_critic, env_step, run_name), eval_score, eval_dict
