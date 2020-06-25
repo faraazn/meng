@@ -3,7 +3,6 @@ import gym
 from .core_wrapper import Wrapper, ActionWrapper, RewardWrapper, ObservationWrapper
 import retro
 import random
-import librosa
 import torch
 import collections
 from constants import ZONE_ACT_2_LVL_MAX_X
