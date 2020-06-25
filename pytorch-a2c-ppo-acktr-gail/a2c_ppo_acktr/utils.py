@@ -10,13 +10,10 @@ from a2c_ppo_acktr.envs import VecNormalize
 # Get a render function
 def get_render_func(venv):
     if hasattr(venv, 'envs'):
-        print("venv.envs[0].render")
         return venv.envs[0].render
     elif hasattr(venv, 'venv'):
-        print(f"get render venv")
         return get_render_func(venv.venv)
     elif hasattr(venv, 'env'):
-        print(f"get render env")
         return get_render_func(venv.env)
 
     return None
