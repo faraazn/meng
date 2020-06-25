@@ -190,8 +190,8 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
                     len(episode_rewards), np.mean(episode_rewards),
                     np.median(episode_rewards), np.min(episode_rewards),
                     np.max(episode_rewards)))
-            print("    dist_entropy {:.5f}, value_loss {:.9f}, action_loss {:.9f}".format(
-                dist_entropy, value_loss, action_loss))
+            print("    dist_entropy {:.5f}, value_loss {:.6f}, action_loss {:.6f}, grad_norm {:.6f}".format(
+                dist_entropy, value_loss, action_loss, total_norm))
             start = time.time()
 
         # save model to ckpt

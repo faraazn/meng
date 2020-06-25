@@ -62,7 +62,7 @@ TRAIN_STATES = (
     (SONIC3, 'HydrocityZone.Act2'),
     (SONIC3, 'MarbleGardenZone.Act1'), (SONIC3, 'MarbleGardenZone.Act2'),
     (SONIC3, 'CarnivalNightZone.Act1'), (SONIC3, 'CarnivalNightZone.Act2'),
-    (SONIC3, 'IcecapZone.Act2'),
+    (SONIC3, 'IcecapZone.Act1'), (SONIC3, 'IcecapZone.Act2'),
     (SONIC3, 'LaunchBaseZone.Act1'), (SONIC3, 'LaunchBaseZone.Act2'),
     (SONIC3, 'MushroomHillZone.Act1'), (SONIC3, 'MushroomHillZone.Act2'),
     (SONIC3, 'FlyingBatteryZone.Act1'),
@@ -80,7 +80,6 @@ TEST_STATES = (
     (SONIC1, 'GreenHillZone.Act2'), (SONIC1, 'SpringYardZone.Act1'), (SONIC1, 'StarLightZone.Act3'), (SONIC1, 'ScrapBrainZone.Act1'),
     (SONIC2, 'MetropolisZone.Act3'), (SONIC2, 'HillTopZone.Act2'), (SONIC2, 'CasinoNightZone.Act2'),
     (SONIC3, 'LavaReefZone.Act1'), (SONIC3, 'FlyingBatteryZone.Act2'), (SONIC3, 'HydrocityZone.Act1'), (SONIC3, 'AngelIslandZone.Act2'), 
-    (SONIC3, 'IcecapZone.Act1')
 )
 
 ZONE_ACT_2_LVL_MAX_X = {
