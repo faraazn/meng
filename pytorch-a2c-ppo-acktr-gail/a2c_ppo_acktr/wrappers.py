@@ -111,7 +111,7 @@ class SonicDiscretizer(ActionWrapper):
         self.action_space = gym.spaces.Discrete(len(self._actions))
 
     def action(self, a): # pylint: disable=W0221
-        a = a[0]  # TODO: is this a cuda thing?
+        a = a.squeeze(0)  # TODO: is this a cuda thing?
         return self._actions[a].copy()
 
 

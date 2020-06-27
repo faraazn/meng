@@ -80,12 +80,12 @@ def get_args():
     parser.add_argument(
         '--num-processes',
         type=int,
-        default=48,
+        default=48*3,
         help='how many training CPU processes to use (default: 16)')
     parser.add_argument(
         '--num-steps',
         type=int,
-        default=32,
+        default=1024,
         help='number of forward steps in A2C (default: 5)')
     parser.add_argument(
         '--ppo-epoch',
@@ -95,7 +95,7 @@ def get_args():
     parser.add_argument(
         '--num-mini-batch',
         type=int,
-        default=24,
+        default=36,
         help='number of batches for ppo (default: 32)')
     parser.add_argument(
         '--clip-param',
@@ -115,7 +115,7 @@ def get_args():
     parser.add_argument(
         '--save-interval',
         type=int,
-        default=1e6,
+        default=5e5,
         help='save interval, one save per n env steps (default: 10000)')
     parser.add_argument(
         '--eval-interval',

@@ -30,7 +30,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_name, args, init_model=None):
-    envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, args.device, 'train', args)
+    envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, 'cpu', 'train', args)
 
     if init_model:
         actor_critic, env_step, model_name = init_model
@@ -65,7 +65,7 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
     if args.algo == 'ppo':
         agent = algo.PPO(
             actor_critic, args.clip_param, args.ppo_epoch, args.num_mini_batch,
-            args.value_loss_coef, args.entropy_coef, lr=args.lr, eps=args.eps,
+            args.value_loss_coef, args.entropy_coef, args.device, lr=args.lr, eps=args.eps,
             max_grad_norm=args.max_grad_norm)
     elif args.algo == 'a2c':
         agent = algo.A2C_ACKTR(
@@ -96,7 +96,6 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
     
     for k in rollouts.obs.keys():
         rollouts.obs[k][0].copy_(obs[k][0])
-    rollouts.to(args.device)
 
     episode_rewards = deque(maxlen=10)
 
@@ -114,8 +113,12 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
             # Sample actions
             with torch.no_grad():
                 value, action, action_log_prob, recurrent_hidden_states, _ = actor_critic.act(
-                    {k: rollouts.obs[k][step] for k in rollouts.obs.keys()},
-                    rollouts.recurrent_hidden_states[step], rollouts.masks[step])
+                    {k: rollouts.obs[k][step].float().to(args.device) for k in rollouts.obs.keys()},
+                    rollouts.recurrent_hidden_states[step].to(args.device), rollouts.masks[step].to(args.device))
+                value = value.cpu()
+                action = action.cpu()
+                action_log_prob = action_log_prob.cpu()
+                recurrent_hidden_states = recurrent_hidden_states.cpu()
             # Observe reward and next obs
             obs, reward, dones, infos = envs.step(action)
             
@@ -136,8 +139,8 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
                             action_log_prob, value, reward, masks, bad_masks)
         with torch.no_grad():
             next_value = actor_critic.get_value(
-                {k: rollouts.obs[k][-1] for k in rollouts.obs.keys()},
-                rollouts.recurrent_hidden_states[-1], rollouts.masks[-1]).detach()
+                {k: rollouts.obs[k][-1].float().to(args.device) for k in rollouts.obs.keys()},
+                rollouts.recurrent_hidden_states[-1].to(args.device), rollouts.masks[-1].to(args.device)).detach().cpu()
 
 
         rollouts.compute_returns(next_value, args.use_gae, args.gamma,
@@ -216,7 +219,7 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
             del envs  # close does not actually get rid of envs, need to del
             actor_critic.eval()
             eval_score, e_dict = evaluate(
-                train_states, actor_critic, 10000, env_step, writer,
+                train_states, actor_critic, eval_env_steps, env_step, writer,
                 vid_save_dir, args.vid_tb_steps, args.vid_file_steps, args.obs_viz_layer, args)
             print(f"  [eval] Evaluation score: {eval_score}")
             writer.add_scalar('eval_score', eval_score, env_step)
