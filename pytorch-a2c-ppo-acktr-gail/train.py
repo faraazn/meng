@@ -158,9 +158,9 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
             param_norm = p.grad.data.norm(2)
             total_norm += param_norm.item() ** 2
         total_norm = total_norm ** (1. / 2)
-        writer.add_scalar(f'grad_norm/{writer_name}', total_norm, env_step)
+        obs_norm = {}
         for obs_name in args.obs_keys:
-            total_norm = 0
+            t_norm = 0
             if obs_name == 'video':
                 md = actor_critic.base.video_module
             elif obs_name == 'audio':
@@ -169,19 +169,21 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
                 raise NotImplementedError
             for p in list(filter(lambda p: p.grad is not None, md.parameters())):
                 param_norm = p.grad.data.norm(2)
-                total_norm += param_norm.item() ** 2
-            total_norm = total_norm ** (1. / 2)
+                t_norm += param_norm.item() ** 2
+            obs_norm[obs_name] = t_norm ** (1. / 2)
         
         prev_env_step = max(0, env_step + 1 - batch_size)
         # write training metrics for this batch, usually takes 0.003s
         if (env_step+1)//args.write_interval > prev_env_step//args.write_interval:
+            writer.add_scalar(f'grad_norm/{writer_name}', total_norm, env_step)
             writer.add_scalar(f'fps/{writer_name}', fps, env_step)
             writer.add_scalar(f'value_loss/{writer_name}', value_loss / batch_size, env_step)
             writer.add_scalar(f'action_loss/{writer_name}', action_loss / batch_size, env_step)
             writer.add_scalar(f'dist_entropy/{writer_name}', dist_entropy / batch_size, env_step)
             writer.add_scalar(f'cpu_usage/{writer_name}', psutil.cpu_percent(), env_step)
             writer.add_scalar(f'cpu_mem/{writer_name}', psutil.virtual_memory()._asdict()['percent'], env_step)
-            writer.add_scalar(f'grad_norm_{obs_name}/{writer_name}', total_norm, env_step)
+            for obs_name in args.obs_keys:
+                writer.add_scalar(f'grad_norm_{obs_name}/{writer_name}', obs_norm[obs_name], env_step)
         
         # print log to console
         if (env_step+1)//args.log_interval > prev_env_step//args.log_interval:
