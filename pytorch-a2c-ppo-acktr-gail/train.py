@@ -227,7 +227,7 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
             writer.add_scalar('eval_score', eval_score, env_step)
 
             actor_critic.train()
-            envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, args.device, 'train', args)
+            envs = make_vec_envs(train_states, args.seed, args.num_processes, args.gamma, 'cpu', 'train', args)
             obs = envs.reset()
             # TODO: does this work? do we need to increment env step or something? whydden_states insert at 0
             for k in rollouts.obs.keys():

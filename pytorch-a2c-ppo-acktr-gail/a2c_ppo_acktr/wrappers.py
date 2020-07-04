@@ -35,6 +35,7 @@ class SonicJointEnv(gym.Env):
         })
         if len(self.game_env_states) == 1:
             self.env = env
+            self.em = env.em
         else:
             env.close()
 
@@ -42,12 +43,10 @@ class SonicJointEnv(gym.Env):
         if len(self.game_env_states) > 1:
             # re-make the env by randomly sampling if there are >1 states provided
             if self.env is not None:
-                self.em = None
                 self.env.close()
             self.env_idx = random.randrange(len(self.game_env_states))
             game_env_state = self.game_env_states[self.env_idx]
-            self.env = retro.make(
-                game=game_env_state[0], state=game_env_state[1])
+            self.env = retro.make(game=game_env_state[0], state=game_env_state[1])
             self.em = self.env.em
             
         obs = {'video': self.env.reset(**kwargs)}
@@ -222,7 +221,6 @@ class StochasticFrameSkip(Wrapper):
             self.cur_ac = ac
         obs, rew, done, info = self.env.step(self.cur_ac)
         total_rew += rew
-        assert self.no_keep_frames
         if self.no_keep_frames:
             final_obs = obs
         else:

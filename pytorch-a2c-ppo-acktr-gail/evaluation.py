@@ -25,14 +25,14 @@ def evaluate(env_states, actor_critic, eval_t, step, writer, vid_save_dir, vid_t
         eval_dict['%'][env_state] = []
         eval_dict['r'][env_state] = []
         
-        env = make_vec_envs(
-            [env_state], args.seed + 1000, 1, None, args.device, 'eval', args)
+        # use args.device instead of 'cpu' because only generating data 1 process and 1 step at a time
+        env = make_vec_envs([env_state], args.seed + 1000, 1, None, args.device, 'eval', args)
         obs = env.reset()
 
         if vid_file_steps > 0:
             vid_filepath = os.path.join(vid_save_dir, f"{env_state[1]}-{step}.webm")
             if args.use_audio:
-                sr = env.em.get_audio_rate()
+                sr = 44100  #env.em.get_audio_rate()  # can't actually do it this way
                 aud_filepath = "/tmp/temp.wav"
                 aud_record = wave.open(aud_filepath,'w')
                 aud_record.setnchannels(1)  # mono
