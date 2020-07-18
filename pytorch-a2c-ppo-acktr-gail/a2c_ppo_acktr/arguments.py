@@ -68,10 +68,10 @@ def get_args():
     parser.add_argument(
         '--max-grad-norm',
         type=float,
-        default=10,
+        default=2048,
         help='max norm of gradients (default: 0.5)')
     parser.add_argument(
-        '--seed', type=int, default=1, help='random seed (default: 1)')
+        '--seed', type=int, default=886739, help='random seed (default: 1)')
     parser.add_argument(
         '--cuda-deterministic',
         action='store_true',
@@ -80,12 +80,12 @@ def get_args():
     parser.add_argument(
         '--num-processes',
         type=int,
-        default=48*3,
+        default=1,#48*3,
         help='how many training CPU processes to use (default: 16)')
     parser.add_argument(
         '--num-steps',
         type=int,
-        default=1024,
+        default=8192,#512,
         help='number of forward steps in A2C (default: 5)')
     parser.add_argument(
         '--ppo-epoch',
@@ -95,7 +95,7 @@ def get_args():
     parser.add_argument(
         '--num-mini-batch',
         type=int,
-        default=36,
+        default=16,#72,
         help='number of batches for ppo (default: 32)')
     parser.add_argument(
         '--clip-param',
@@ -105,28 +105,23 @@ def get_args():
     parser.add_argument(
         '--log-interval',
         type=int,
-        default=1e3,
+        default=1e5,
         help='log interval, one log per n env steps (default: 1000)')
     parser.add_argument(
         '--write-interval',
         type=int,
-        default=2.5e3,
+        default=5e3,
         help='tensorboard write interval, one log per n env steps (default: 1000)')
     parser.add_argument(
         '--save-interval',
         type=int,
-        default=5e5,
+        default=1e6,
         help='save interval, one save per n env steps (default: 10000)')
     parser.add_argument(
         '--eval-interval',
         type=int,
         default=5e6,
         help='eval interval, one eval per n env steps (default: None)')
-    parser.add_argument(
-        '--num-env-steps',
-        type=int,
-        default=1e7,
-        help='number of environment steps to train (default: 1e7)')
     parser.add_argument(
         '--no-cuda',
         action='store_true',
@@ -149,7 +144,7 @@ def get_args():
         help='use a linear schedule on the learning rate')
     parser.add_argument(
         '--load',
-        default='',
+        default='runs/07-10_11-42-50_10m',
         help='start training a model from given checkpoint'
     )
 
@@ -162,7 +157,7 @@ def get_args():
     parser.add_argument(
         '--use-audio',
         action='store_true',
-        default=False,
+        default=True,
         help='use audio observation'
     )
     parser.add_argument(
@@ -240,19 +235,19 @@ def get_args():
     )
     parser.add_argument(
         '--solo-eval-steps',
-        default=1e5,
+        default=1e4,
         type=int,
         help='number of training steps for each ppo solo eval'
     )
     parser.add_argument(
         '--joint-train-steps',
-        default=3e7,
+        default=0,#3e7,
         type=int,
         help='number of training steps for joint ppo training'
     )
     parser.add_argument(
         '--joint-eval-steps',
-        default=1e5,
+        default=0,#1e4,
         type=int,
         help='number of training steps for each level in joint ppo training'
     )

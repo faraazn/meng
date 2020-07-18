@@ -81,7 +81,7 @@ class PPO():
                     value_loss = 0.5 * (return_batch - values).pow(2).mean()
 
                 total_loss = value_loss*self.value_loss_coef + action_loss - dist_entropy*self.entropy_coef
-                total_loss /= self.num_mini_batch
+                #total_loss /= self.num_mini_batch
                 total_loss.backward()
                 
                 value_loss_epoch += value_loss.item()

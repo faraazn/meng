@@ -58,7 +58,7 @@ def main():
     joint_model, eval_score, _ = train(
         TRAIN_STATES, f"runs/{run_name}/ppo-joint", args.joint_train_steps, args.joint_eval_steps, writer, 'joint', args, init_model)
     writer.close()
-
+    
     # fine tune ppo-joint on test set
     writer = SummaryWriter(log_dir=f"runs/{run_name}/ppo-joint-test/")
     for i, env_state in enumerate(TEST_STATES):
@@ -82,7 +82,7 @@ def main():
             print(f"  Fine tuning joint model at step {init_model[1]}")
             init_model[1] = 0  # reset step to 0
         model, eval_score, _ = train(
-            [env_state], f"runs/{run_name}/ppo-joint-train/{env_state[1]}", args.joint_train_steps, args.joint_eval_steps, writer, env_state[1], args, init_model)
+            [env_state], f"runs/{run_name}/ppo-joint-train/{env_state[1]}", args.solo_train_steps, args.solo_eval_steps, writer, env_state[1], args, init_model)
     writer.close()
     
     # ppo-solo training

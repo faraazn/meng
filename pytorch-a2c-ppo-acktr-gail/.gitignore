@@ -102,4 +102,7 @@ venv.bak/
 
 runs/
 saved-runs/
+*.$
+*.out
+core.*
 .fuse_hidden*

@@ -209,7 +209,7 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
             print(f"  [save] Saved model at step {env_step+1}.")
 
         # save model to ckpt and run evaluation if eval_interval and not final iteration in training loop
-        if ((env_step+1)//args.eval_interval > prev_env_step//args.eval_interval) and env_step < num_env_steps:
+        if ((env_step+1)//args.eval_interval > prev_env_step//args.eval_interval) and env_step < num_env_steps and eval_env_steps > 0:
             torch.save([
                 actor_critic,
                 env_step,
@@ -245,9 +245,12 @@ def train(train_states, run_dir, num_env_steps, eval_env_steps, writer, writer_n
     # final model eval
     envs.close()
     del envs
-    eval_score, eval_dict = evaluate(
-        train_states, actor_critic, eval_env_steps, env_step, writer,
-        vid_save_dir, args.vid_tb_steps, args.vid_file_steps, args.obs_viz_layer, args)
-    print(f"  [eval] Final model evaluation score: {eval_score:.3f}")
+    eval_score = None
+    eval_dict = None
+    if eval_env_steps > 0:
+        eval_score, eval_dict = evaluate(
+            train_states, actor_critic, eval_env_steps, env_step, writer,
+            vid_save_dir, args.vid_tb_steps, args.vid_file_steps, args.obs_viz_layer, args)
+        print(f"  [eval] Final model evaluation score: {eval_score:.3f}")
 
     return (actor_critic, env_step, run_name), eval_score, eval_dict
