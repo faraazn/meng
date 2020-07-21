@@ -322,9 +322,8 @@ class RandomStart(Wrapper):
     def reset(self, **kwargs):
         obs = self.env.reset(**kwargs)
         rand_steps = np.random.choice(range(self._min_rand_steps, self._max_rand_steps))
-        print(f"rand_steps {rand_steps}")
         for i in range(rand_steps):
-            action = torch.Tensor(self.env.action_space.sample())
-            print(f"action {i} {action}")
-            obs = self.env.step(action)
+            action = self.env.action_space.sample()
+            action = torch.tensor(action)
+            obs, rew, done, info = self.env.step(action)
         return obs
