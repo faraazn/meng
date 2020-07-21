@@ -313,4 +313,18 @@ class ObsMemoryBuffer(ObservationWrapper):
         return final_obs
 
 
+class RandomStart(Wrapper):
+    def __init__(self, env, min_rand_steps, max_rand_steps):
+        super(RandomStart, self).__init__(env)
+        self._min_rand_steps = min_rand_steps
+        self._max_rand_steps = max_rand_steps
 
+    def reset(self, **kwargs):
+        obs = self.env.reset(**kwargs)
+        rand_steps = np.random.choice(range(self._min_rand_steps, self._max_rand_steps))
+        print(f"rand_steps {rand_steps}")
+        for i in range(rand_steps):
+            action = torch.Tensor(self.env.action_space.sample())
+            print(f"action {i} {action}")
+            obs = self.env.step(action)
+        return obs

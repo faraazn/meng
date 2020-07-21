@@ -226,6 +226,28 @@ class NNBase2(NNBase):
                     init_(nn.Conv2d(16, 32, 4, stride=2)), nn.ReLU(),  # [32, 26, 38]
                     Flatten(), init_(nn.Linear(32*np.prod(conv_dim), 256)), nn.ReLU())
                 self._hidden_size += 256
+            elif obs_module[obs_name] == '2x-video-medium':
+                # OpenAI Baselines small - 16,209,920 parameters w video shape [b, 3, 224, 320]
+                assert len(p_process.output_shape) == 4  # [b, 3, h, w]
+                conv_dim = (np.array(p_process.output_shape[2:]) - 8) // 4 + 1
+                conv_dim = (conv_dim - 4) // 2 + 1
+                module = nn.Sequential(
+                    init_(nn.Conv2d(p_process.output_shape[1], 16, 8, stride=4)), nn.ReLU(),  # [16, 55, 79]
+                    init_(nn.Conv2d(16, 32, 4, stride=2)), nn.ReLU(),  # [32, 26, 38]
+                    Flatten(), init_(nn.Linear(32*np.prod(conv_dim), 512)), nn.ReLU())
+                self._hidden_size += 512
+            elif obs_module[obs_name] == 'video-large-256':
+                # OpenAI Baselines large - 14,177,024 parameters w video shape [b, 3, 224, 320]
+                assert len(p_process.output_shape) == 4  # [b, 3, h, w]
+                conv_dim = (np.array(p_process.output_shape[2:]) - 8) // 4 + 1
+                conv_dim = (conv_dim - 4) // 2 + 1
+                conv_dim = (conv_dim - 3) // 1 + 1
+                module = nn.Sequential(
+                    init_(nn.Conv2d(p_process.output_shape[1], 32, 8, stride=4)), nn.ReLU(),  # [32, 55, 79]
+                    init_(nn.Conv2d(32, 64, 4, stride=2)), nn.ReLU(),  # [64, 26, 38]
+                    init_(nn.Conv2d(64, 64, 3, stride=1)), nn.ReLU(),  # [64, 24, 36]
+                    Flatten(), init_(nn.Linear(64*np.prod(conv_dim), 256)), nn.ReLU())  # [512]
+                self._hidden_size += 256
             elif obs_module[obs_name] == 'video-large':
                 # OpenAI Baselines large - 28,387,328 parameters w video shape [b, 3, 224, 320]
                 assert len(p_process.output_shape) == 4  # [b, 3, h, w]

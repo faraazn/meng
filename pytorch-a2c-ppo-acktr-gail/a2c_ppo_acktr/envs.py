@@ -13,7 +13,7 @@ from .vec_env.vec_normalize import VecNormalize as VecNormalize_
 
 import retro
 from .wrappers import SonicJointEnv, TimeLimit, AllowBacktracking, SonicMaxXSumRInfo, \
-                      SonicDiscretizer, RewardScaler, StochasticFrameSkip, EnvAudio, ObsMemoryBuffer
+    SonicDiscretizer, RewardScaler, StochasticFrameSkip, EnvAudio, ObsMemoryBuffer, RandomStart
 from .core_wrapper import ObservationWrapper
 
 
@@ -30,6 +30,7 @@ def make_env(env_states, seed, rank, mode, args):
         env = StochasticFrameSkip(env, args.fskip_num, args.fskip_prob, args.obs_keep_fskip)
         env = ObsMemoryBuffer(env, args.obs_mbuf)
         env = TimeLimit(env, max_episode_steps=args.max_episode_steps)
+        env = RandomStart(env, args.min_random_start, args.max_random_start)
 
         env.seed(seed + rank)
         return env

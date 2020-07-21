@@ -71,7 +71,7 @@ def get_args():
         default=2048,
         help='max norm of gradients (default: 0.5)')
     parser.add_argument(
-        '--seed', type=int, default=886739, help='random seed (default: 1)')
+        '--seed', type=int, default=108968, help='random seed (default: 1)')
     parser.add_argument(
         '--cuda-deterministic',
         action='store_true',
@@ -80,12 +80,12 @@ def get_args():
     parser.add_argument(
         '--num-processes',
         type=int,
-        default=1,#48*3,
+        default=48,#*3,
         help='how many training CPU processes to use (default: 16)')
     parser.add_argument(
         '--num-steps',
         type=int,
-        default=8192,#512,
+        default=512,
         help='number of forward steps in A2C (default: 5)')
     parser.add_argument(
         '--ppo-epoch',
@@ -95,7 +95,7 @@ def get_args():
     parser.add_argument(
         '--num-mini-batch',
         type=int,
-        default=16,#72,
+        default=72,
         help='number of batches for ppo (default: 32)')
     parser.add_argument(
         '--clip-param',
@@ -144,7 +144,7 @@ def get_args():
         help='use a linear schedule on the learning rate')
     parser.add_argument(
         '--load',
-        default='runs/07-10_11-42-50_10m',
+        default='',
         help='start training a model from given checkpoint'
     )
 
@@ -157,7 +157,7 @@ def get_args():
     parser.add_argument(
         '--use-audio',
         action='store_true',
-        default=True,
+        default=False,
         help='use audio observation'
     )
     parser.add_argument(
@@ -168,7 +168,7 @@ def get_args():
     )
     parser.add_argument(
         '--obs-mbuf',
-        default='{"video": 4, "audio": 4}',
+        default='{"video": 1, "audio": 16}',
         type=str,
         help='number of previous observations, plus the current one, to concatenate together. 1 gives only the current observation.'
     )
@@ -180,13 +180,13 @@ def get_args():
     )
     parser.add_argument(
         '--obs-module',
-        default='{"video": "video-medium", "audio": "audio-medium"}',
+        default='{"video": "video-large-256", "audio": "audio-medium"}',
         type=str,
         help='neural network architecture for processing each observation'
     )
     parser.add_argument(
         '--obs-viz-layer',
-        default='{"video": 3, "audio": 3}',
+        default='{"video": 5, "audio": 3}',
         type=str,
         help='which cnn layer in neural network architecture to visualize using scorecam method'
     )
@@ -226,6 +226,18 @@ def get_args():
         type=int,
         help='max episode steps post frameskip until reset'
     )
+    parser.add_argument(
+        '--min-random-start',
+        default=16,
+        type=int,
+        help='min number of random steps to take at start of episode'
+    )
+    parser.add_argument(
+        '--max-random-start',
+        default=45,
+        type=int,
+        help='max number of random steps to take at start of episode'
+    )
     
     parser.add_argument(
         '--solo-train-steps',
@@ -241,13 +253,13 @@ def get_args():
     )
     parser.add_argument(
         '--joint-train-steps',
-        default=0,#3e7,
+        default=3e7,
         type=int,
         help='number of training steps for joint ppo training'
     )
     parser.add_argument(
         '--joint-eval-steps',
-        default=0,#1e4,
+        default=1e4,
         type=int,
         help='number of training steps for each level in joint ppo training'
     )
